@@ -1,0 +1,14 @@
+# Dependencies (Already managed by composer)
+/vendor/
+
+# Environment/DB Configs (Crucial for security)
+config.php
+db.php
+
+# Debug and Log files
+*.log
+debug_recoiling.txt
+
+# OS and IDE files
+.vscode/
+Thumbs.db
