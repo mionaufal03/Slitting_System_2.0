@@ -1,42 +1,3 @@
-<?php
-session_start();
-
-if (!isset($_SESSION['role'])) {
-    header("Location: login.php");
-    exit;
-}
-
-// ONLY slitting can access
-if ($_SESSION['role'] !== 'slitting') {
-    die("Access denied");
-}
-
-include 'config.php';
-
-$from_stock = isset($_GET['stock_id']);
-$source_data = null;
-$source_type = '';
-
-if ($from_stock) {
-    // From Stock After Cut
-    $stock_id = intval($_GET['stock_id']);
-    $source_data = $conn->query("SELECT * FROM raw_material_log WHERE id=$stock_id AND status='IN' AND action='cut_into_2'")->fetch_assoc();
-    $source_type = 'stock';
-
-    if (!$source_data) {
-        die("Stock not found or already used.");
-    }
-} else {
-    // From Mother Coil
-    $mother_id = intval($_GET['mother_id']);
-    $source_data = $conn->query("SELECT * FROM mother_coil WHERE id=$mother_id")->fetch_assoc();
-    $source_type = 'mother';
-
-    if (!$source_data) {
-        die("Mother coil not found.");
-    }
-}
-?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -66,7 +27,7 @@ if ($from_stock) {
         <p class="mb-0"><strong><?= $from_stock ? 'Available' : 'Original' ?> Length:</strong> <?= htmlspecialchars($source_data['length']) ?> meter</p>
     </div>
 
-    <form method="post" action="save_slitting.php">
+    <form method="post" action="index.php?controller=slitting&action=create">
         <input type="hidden" name="source_type" value="<?= $source_type ?>">
         <?php if($from_stock): ?>
             <input type="hidden" name="stock_id" value="<?= $source_data['id'] ?>">
@@ -128,7 +89,7 @@ if ($from_stock) {
         <button type="submit" class="btn btn-primary mt-3" id="submitBtn" style="display:none;">
             <i class="bi bi-check-circle"></i> Save
         </button>
-        <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-danger mt-3">Cancel</a>
+        <a href="index.php?controller=<?= $from_stock ? 'raw_material' : 'mother' ?>&action=list" class="btn btn-danger mt-3">Cancel</a>
     </form>
 </div>
 

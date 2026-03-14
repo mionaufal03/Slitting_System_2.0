@@ -1,35 +1,3 @@
-<?php
-// Front Controller / Router
-
-require_once 'vendor/autoload.php';
-
-require_once 'config/database.php';
-
-$controller = $_GET['controller'] ?? 'dashboard';
-$action = $_GET['action'] ?? 'index';
-
-$controllerClass = 'App\\Controllers\\' . ucfirst($controller) . 'Controller';
-
-if (class_exists($controllerClass)) {
-    $controllerInstance = new $controllerClass($pdo);
-    if (method_exists($controllerInstance, $action)) {
-        $controllerInstance->$action();
-    } else {
-        echo "Action not found";
-    }
-} else {
-    echo "Controller not found";
-} 
-                                WHERE status='WAITING' 
-                                AND MONTH(date_out)=$month AND YEAR(date_out)=$year")
-                                ->fetch_assoc()['total'];
-
-$deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product 
-                                WHERE status='DELIVERED' 
-                                AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year")
-                                ->fetch_assoc()['total'];
-?>
-
 <!DOCTYPE html>
 <html>
 <head>
