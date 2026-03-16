@@ -58,6 +58,7 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                                 ->fetch_assoc()['total'];
 ?>
 
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -177,4 +178,4 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
 </div>
 
 </body>
-</html>
+</html> 

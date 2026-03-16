@@ -8,6 +8,8 @@ db.php.txt
 # Debug and Log files
 *.log
 debug_recoiling.txt
+config.php.ori
+db.php.example
 
 # OS and IDE files
 .vscode/
