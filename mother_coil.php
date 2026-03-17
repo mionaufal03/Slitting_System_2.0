@@ -76,9 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Field missing");
     }
 
-    if ($product === '') {
+   /* if ($product === '') {
         die("Coil not found / product empty");
-    }
+    } */
 
     if ($action === 'add') {
         $stmt = $conn->prepare("

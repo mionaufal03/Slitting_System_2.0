@@ -37,7 +37,10 @@ if ($type === 'slitting') {
     if ($lot === '' || $coil === '') die('Invalid QR data');
 
     // ✅ 1 line sahaja
-    $qrText = "LOT={$lot};COIL={$coil}";
+    $qrText = $_GET['product'] ?? '';
+    $qrText = $BASE_URL . "/mother_coil_ac"
+    
+
 }
 
 $writer = new PngWriter();
