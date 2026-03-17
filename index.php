@@ -96,6 +96,9 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                 <li class="nav-item mb-2">
                     <a class="nav-link text-white" href="report.php">Report</a>
                 </li>
+                <li class="nav-item mb-2">
+                    <a class="nav-link text-white" href="logout.php">Logout</a>
+                </li>
             </ul>
         </div>
 
