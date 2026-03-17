@@ -38,7 +38,7 @@ if ($type === 'slitting') {
 
     // ✅ 1 line sahaja
     $qrText = $_GET['product'] ?? '';
-    $qrText = $BASE_URL . "/mother_coil_ac"
+    $qrText = $BASE_URL . "/mother_coil_ac" ;
     
 
 }

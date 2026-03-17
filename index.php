@@ -79,10 +79,10 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                     <a class="nav-link text-white" href="index.php">Dashboard</a>
                 </li>
                 <li class="nav-item mb-2">
-                    <a class="nav-link text-white" href="raw_material.php">Raw Material</a>
+                    <a class="nav-link text-white" href="mother_coil.php">Mother Coil List</a>
                 </li>
                 <li class="nav-item mb-2">
-                    <a class="nav-link text-white" href="finish_product.php">Finish Product</a>
+                    <a class="nav-link text-white" href="raw_material.php">Raw Material</a>
                 </li>
                  <li class="nav-item mb-2">
                     <a class="nav-link text-white" href="recoiling.php">Recoiling Cut</a>
@@ -91,7 +91,7 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                     <a class="nav-link text-white" href="reslit.php">Reslit Product</a>
                 </li>
                 <li class="nav-item mb-2">
-                    <a class="nav-link text-white" href="mother_coil.php">Add Mother Coil</a>
+                    <a class="nav-link text-white" href="finish_product.php">Finish Product</a>
                 </li>
                 <li class="nav-item mb-2">
                     <a class="nav-link text-white" href="report.php">Report</a>
