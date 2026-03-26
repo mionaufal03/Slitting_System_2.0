@@ -28,12 +28,18 @@ if ($from_stock) {
     }
 } else {
     // From Mother Coil
+    if (!isset($_GET['mother_id'])) {
+        die("Error: mother_id was not provided in the URL.");
+    }
     $mother_id = intval($_GET['mother_id']);
+    if ($mother_id <= 0) {
+        die("Error: Invalid mother_id provided in the URL.");
+    }
     $source_data = $conn->query("SELECT * FROM mother_coil WHERE id=$mother_id")->fetch_assoc();
     $source_type = 'mother';
 
     if (!$source_data) {
-        die("Mother coil not found.");
+        die("Mother coil not found for ID: $mother_id");
     }
 }
 ?>

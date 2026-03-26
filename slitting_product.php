@@ -109,7 +109,7 @@ if(isset($_GET['edit'])){
             <td>
                 <a href="?edit=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
                 <a href="?delete=<?= $row['id'] ?>" onclick="return confirm('Delete this product?')" class="btn btn-danger btn-sm">Delete</a>
-                <a href="print_slitting.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
+                <a href="select_customer.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
             </td>
         </tr>
     <?php endwhile; else: ?>

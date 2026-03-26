@@ -92,10 +92,13 @@ $result = $conn->query("SELECT * FROM raw_material_log
     </form>
 
     <!-- Button Download -->
-    <div class="mb-3">
+    <div class="mb-3 d-flex gap-2">
         <a href="raw_material_export.php?month=<?= $month ?>&year=<?= $year ?>" class="btn btn-success">
             Download 
         </a>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#manualEntryModal">
+            Manual Entry
+        </button>
     </div>
 
     <!-- Summary cards -->
@@ -229,6 +232,35 @@ $result = $conn->query("SELECT * FROM raw_material_log
     <a href="index.php" class="btn btn-secondary mt-3">← Back</a>
 </div>
 
+<!-- Manual Entry Modal -->
+<div class="modal fade" id="manualEntryModal" tabindex="-1" aria-labelledby="manualEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manualEntryModalLabel">Manual Mother Coil Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manualEntryForm">
+                    <div class="mb-3">
+                        <label for="manual_lot_no" class="form-label">Lot No.</label>
+                        <input type="text" class="form-control" id="manual_lot_no" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="manual_coil_no" class="form-label">Coil No.</label>
+                        <input type="text" class="form-control" id="manual_coil_no" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="manualSubmitButton">Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   // ✅ Hidden scanner handler (scanner = keyboard)
   const qrInput = document.getElementById('qrInput');
@@ -253,9 +285,36 @@ $result = $conn->query("SELECT * FROM raw_material_log
       if (el === qrInput) return;
       return;
     }
+    
+    // Jangan focus kalau modal manual entry tengah buka
+    const modalEl = document.getElementById('manualEntryModal');
+    if (modalEl && modalEl.classList.contains('show')) {
+        return;
+    }
 
     if (document.activeElement !== qrInput) qrInput.focus();
   }, 800);
+
+  // Handle Manual Entry submission
+  document.getElementById('manualSubmitButton').addEventListener('click', function() {
+      const lotNo = document.getElementById('manual_lot_no').value.trim();
+      const coilNo = document.getElementById('manual_coil_no').value.trim();
+
+      if (lotNo && coilNo) {
+          const qrString = `LOT=${lotNo};COIL=${coilNo}`;
+          document.getElementById('qrInput').value = qrString;
+          document.getElementById('scanForm').submit();
+      } else {
+          alert('Please fill in both Lot No. and Coil No.');
+      }
+  });
+
+  const manualEntryModal = document.getElementById('manualEntryModal');
+  manualEntryModal.addEventListener('shown.bs.modal', () => {
+      document.getElementById('manual_lot_no').focus();
+      document.getElementById('manualEntryForm').reset();
+  });
+
 </script>
 
 </body>

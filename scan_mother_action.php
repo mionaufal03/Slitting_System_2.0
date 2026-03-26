@@ -135,7 +135,7 @@ if ($log['status'] === 'IN') {
     $stmt->close();
 
     // ✅ Terus pergi add_slitting (tak kira scan dari page mana)
-    $go = $BASE_URL . "/add_slitting.php?mother_id=" . (int)$mother['id'];
+    $go = "add_slitting.php?mother_id=" . (int)$mother['id'];
     header("Location: $go");
     exit;
 }
