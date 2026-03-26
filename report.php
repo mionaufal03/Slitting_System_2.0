@@ -1,34 +1,59 @@
 <?php
 require_once 'config.php';
 
+// This query provides a historical, cumulative count of all scan-in events for each month.
+// It correctly counts all 'IN' statuses from the log, ensuring the total doesn't decrease
+// if materials are later marked as 'OUT', which aligns with the critical business logic for this report.
+// Monthly summary query for raw material
+$monthly_summary_query = "
+    SELECT
+        DATE_FORMAT(date_in, '%Y-%m') AS month_year,
+        COUNT(*) AS total_count
+    FROM
+        raw_material_log
+    WHERE
+        status = 'IN' AND date_in IS NOT NULL
+    GROUP BY
+        month_year
+    ORDER BY
+        month_year DESC;
+";
+$monthly_summary_result = $conn->query($monthly_summary_query);
+$raw_material_monthly_summary = [];
+if ($monthly_summary_result) {
+    while ($row = $monthly_summary_result->fetch_assoc()) {
+        $raw_material_monthly_summary[] = $row;
+    }
+}
+
+
 $selected_month = isset($_POST['month']) ? $_POST['month'] : date('m');
 $selected_year = isset($_POST['year']) ? $_POST['year'] : date('Y');
 
-$coil_in_data = [];
-$coil_out_data = [];
+$raw_material_data = [];
+$slitting_product_delivered_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Coil In Query
-    $stmt_in = $conn->prepare("SELECT * FROM mother_coil WHERE MONTH(date_in) = ? AND YEAR(date_in) = ?");
+    // Raw Material In Query
+    $stmt_in = $conn->prepare("SELECT * FROM raw_material_log WHERE MONTH(date_in) = ? AND YEAR(date_in) = ? AND status = 'IN'");
     $stmt_in->bind_param("ss", $selected_month, $selected_year);
     $stmt_in->execute();
     $result_in = $stmt_in->get_result();
     while ($row = $result_in->fetch_assoc()) {
-        $coil_in_data[] = $row;
+        $raw_material_data[] = $row;
     }
     $stmt_in->close();
 
-    // Coil Out Query
-    $stmt_out = $conn->prepare("SELECT * FROM slitting_product WHERE MONTH(date_out) = ? AND YEAR(date_out) = ? AND status = 'OUT'");
+    // Slitting Product Delivered Query
+    $stmt_out = $conn->prepare("SELECT * FROM slitting_product WHERE MONTH(delivered_at) = ? AND YEAR(delivered_at) = ?");
     $stmt_out->bind_param("ss", $selected_month, $selected_year);
     $stmt_out->execute();
     $result_out = $stmt_out->get_result();
     while ($row = $result_out->fetch_assoc()) {
-        $coil_out_data[] = $row;
+        $slitting_product_delivered_data[] = $row;
     }
     $stmt_out->close();
-}
-
+} 
 $conn->close();
 ?>
 
@@ -37,7 +62,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coil In/Out Report - Nichias Slitting System</title>
+    <title>Monthly Report - Nichias Slitting System</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -82,13 +107,41 @@ $conn->close();
 
     <div class="report-header shadow-sm no-print">
         <div class="container text-center">
-            <h1 class="fw-bold text-primary"><i class="bi bi-file-earmark-bar-graph"></i> Coil In & Out Report</h1>
+            <h1 class="fw-bold text-primary"><i class="bi bi-file-earmark-bar-graph"></i> Monthly Report</h1>
             <p class="text-muted">Nichias Monthly Coil Management Report</p>
         </div>
     </div>
 
     <div class="container pb-5">
         
+        <div class="card shadow-sm mb-4 no-print">
+            <div class="card-header">
+                <h4 class="fw-bold text-dark mb-0"><i class="bi bi-calendar-month text-primary"></i> Monthly Raw Material Scanned (Checked-in)</h4>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-3">Month</th>
+                            <th class="text-center">Total Raw Materials Scanned</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($raw_material_monthly_summary)): ?>
+                            <tr><td colspan="2" class="text-center py-4 text-muted">No data available.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($raw_material_monthly_summary as $summary): ?>
+                                <tr>
+                                    <td class="ps-3 fw-medium"><?php echo date("F Y", strtotime($summary['month_year'] . "-01")); ?></td>
+                                    <td class="text-center"><?php echo $summary['total_count']; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card shadow-sm mb-4 no-print">
             <div class="card-body">
                 <form action="report.php" method="post" class="row g-3 justify-content-center align-items-end">
@@ -124,7 +177,7 @@ $conn->close();
         <?php if ($_SERVER['REQUEST_METHOD'] == 'POST'): ?>
             
             <div class="text-center mb-4 d-none d-print-block">
-                <h2>Coil Report: <?php echo date('F', mktime(0, 0, 0, $selected_month, 10)) . ' ' . $selected_year; ?></h2>
+                <h2>Monthly Report: <?php echo date('F', mktime(0, 0, 0, $selected_month, 10)) . ' ' . $selected_year; ?></h2>
                 <hr>
             </div>
 
@@ -133,8 +186,8 @@ $conn->close();
                     <div class="card bg-primary text-white shadow-sm h-100">
                         <div class="card-body d-flex align-items-center justify-content-between p-4">
                             <div>
-                                <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Total Coils In</h6>
-                                <h2 class="display-5 fw-bold mb-0"><?php echo count($coil_in_data); ?></h2>
+                                <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Total Raw Material In</h6>
+                                <h2 class="display-5 fw-bold mb-0"><?php echo count($raw_material_data); ?></h2>
                             </div>
                             <i class="bi bi-box-arrow-in-right summary-icon"></i>
                         </div>
@@ -144,10 +197,10 @@ $conn->close();
                     <div class="card bg-success text-white shadow-sm h-100">
                         <div class="card-body d-flex align-items-center justify-content-between p-4">
                             <div>
-                                <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Total Coils Out</h6>
-                                <h2 class="display-5 fw-bold mb-0"><?php echo count($coil_out_data); ?></h2>
+                                <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Total Slitting Product Delivered</h6>
+                                <h2 class="display-5 fw-bold mb-0"><?php echo count($slitting_product_delivered_data); ?></h2>
                             </div>
-                            <i class="bi bi-box-arrow-up-right summary-icon"></i>
+                            <i class="bi bi-truck summary-icon"></i>
                         </div>
                     </div>
                 </div>
@@ -156,7 +209,7 @@ $conn->close();
             <div class="row">
                 <div class="col-12 mb-5">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-right-circle text-primary"></i> Coil In Details</h4>
+                        <h4 class="fw-bold text-dark mb-0"><i class="bi bi-journal-text text-primary"></i> Raw Material In Details</h4>
                         <button onclick="window.print()" class="btn btn-outline-secondary btn-sm no-print">
                             <i class="bi bi-printer"></i> Print Report
                         </button>
@@ -175,10 +228,10 @@ $conn->close();
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (empty($coil_in_data)): ?>
-                                        <tr><td colspan="6" class="text-center py-4 text-muted">No coil entry data found for this period.</td></tr>
+                                    <?php if (empty($raw_material_data)): ?>
+                                        <tr><td colspan="6" class="text-center py-4 text-muted">No raw material entry data found for this period.</td></tr>
                                     <?php else: ?>
-                                        <?php foreach ($coil_in_data as $row): ?>
+                                        <?php foreach ($raw_material_data as $row): ?>
                                             <tr>
                                                 <td class="ps-3 fw-medium small"><?php echo htmlspecialchars($row['date_in']); ?></td>
                                                 <td><span class="badge bg-light text-dark border fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></span></td>
@@ -196,13 +249,13 @@ $conn->close();
                 </div>
 
                 <div class="col-12">
-                    <h4 class="fw-bold text-dark mb-3"><i class="bi bi-arrow-up-right-circle text-success"></i> Coil Out Details</h4>
+                    <h4 class="fw-bold text-dark mb-3"><i class="bi bi-check-circle text-success"></i> Slitting Product Delivered Details</h4>
                     <div class="card shadow-sm border-top border-success border-4">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
                                 <thead>
                                     <tr>
-                                        <th class="ps-3">Date Out</th>
+                                        <th class="ps-3">Delivered At</th>
                                         <th>Coil No</th>
                                         <th>Product</th>
                                         <th>Lot No</th>
@@ -211,12 +264,12 @@ $conn->close();
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (empty($coil_out_data)): ?>
-                                        <tr><td colspan="6" class="text-center py-4 text-muted">No coil production data found for this period.</td></tr>
+                                    <?php if (empty($slitting_product_delivered_data)): ?>
+                                        <tr><td colspan="6" class="text-center py-4 text-muted">No slitting product delivered data found for this period.</td></tr>
                                     <?php else: ?>
-                                        <?php foreach ($coil_out_data as $row): ?>
+                                        <?php foreach ($slitting_product_delivered_data as $row): ?>
                                             <tr>
-                                                <td class="ps-3 fw-medium small"><?php echo htmlspecialchars($row['date_out']); ?></td>
+                                                <td class="ps-3 fw-medium small"><?php echo htmlspecialchars($row['delivered_at']); ?></td>
                                                 <td><span class="badge bg-light text-dark border fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></span></td>
                                                 <td><?php echo htmlspecialchars($row['product']); ?></td>
                                                 <td class="text-secondary small"><?php echo htmlspecialchars($row['lot_no']); ?></td>
