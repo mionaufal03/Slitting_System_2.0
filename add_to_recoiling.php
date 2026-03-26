@@ -38,6 +38,6 @@ $stmt->execute();
 $stmt->close();
 
 // Redirect to recoiling list
-header("Location: recoiling_cut.php?success=added");
+header("Location: recoiling.php?success=added");
 exit;
 ?>

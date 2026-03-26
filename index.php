@@ -84,6 +84,9 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                 <li class="nav-item mb-2">
                     <a class="nav-link text-white" href="raw_material.php">Raw Material</a>
                 </li>
+                <li class="nav-item mb-2">
+                    <a class="nav-link text-white" href="slitting_product.php">Slitting Product</a>
+                </li>
                  <li class="nav-item mb-2">
                     <a class="nav-link text-white" href="recoiling.php">Recoiling Cut</a>
                 </li>

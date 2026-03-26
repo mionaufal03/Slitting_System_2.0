@@ -165,7 +165,43 @@ if(isset($_GET['edit'])){
 <div class="modal-backdrop fade show"></div>
 <?php endif; ?>
 
+<!-- Modal Add to Recoiling -->
+<div class="modal fade" id="recoilingModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="get" action="add_to_recoiling.php">
+      <input type="hidden" name="id" id="recoiling_product_id">
+      <div class="modal-header">
+        <h5 class="modal-title">Add to Recoiling</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+          <div class="mb-3">
+              <label class="form-label">Actual Length (optional)</label>
+              <input type="number" step="0.01" name="actual_length" class="form-control">
+              <small class="text-muted">Leave blank if not applicable.</small>
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Add</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <a href="index.php" class="btn btn-secondary mt-3">← Back</a>
 </div>
+
+<script>
+const recoilingModal = document.getElementById('recoilingModal');
+if (recoilingModal) {
+  recoilingModal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const productId = button.getAttribute('data-id');
+    const modalProductIdInput = recoilingModal.querySelector('#recoiling_product_id');
+    modalProductIdInput.value = productId;
+  });
+}
+</script>
 </body>
 </html>
