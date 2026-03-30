@@ -458,12 +458,15 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
         </select>
     </form>
 
-    <!-- Button Download -->
-    <div class="mb-3">
+    <!-- Buttons -->
+    <div class="mb-3 d-flex gap-2">
         <a href="?month=<?= $month ?>&year=<?= $year ?>&download=excel" 
            class="btn btn-success">
             <i class="bi bi-download"></i> Download 
         </a>
+        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#manualEntryModal">
+            <i class="bi bi-keyboard"></i> Manual Entry
+        </button>
     </div>
 
     <!-- summary cards - Full flow tracking -->
@@ -784,6 +787,33 @@ updateUI(toNum(input.value));
 
     <a href="index.php" class="btn btn-secondary mt-3">
         <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<!-- Manual Entry Modal -->
+<div class="modal fade" id="manualEntryModal" tabindex="-1" aria-labelledby="manualEntryModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="manualEntryModalLabel">Manual Product Scan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="scan_product_action.php" autocomplete="off">
+        <div class="modal-body">
+          <p>Enter the QR code data manually. This is usually in the format LOT;COIL;ROLL.</p>
+          <div class="mb-3">
+            <label for="manualQrInput" class="form-label">QR Data</label>
+            <input type="text" class="form-control" id="manualQrInput" name="qr" required autofocus>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

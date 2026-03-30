@@ -12,7 +12,7 @@ if ($_SESSION['role'] !== 'qc') {
 
 include 'config.php';
 
-$id = (int)($_POST['id'] ?? 0);
+$id = (int)($_GET['id'] ?? 0);
 if ($id <= 0) {
     header("Location: qc_dashboard.php");
     exit;

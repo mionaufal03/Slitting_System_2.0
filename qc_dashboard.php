@@ -2,7 +2,7 @@
 require_once 'config.php';
 
 // Fetch products pending QC approval
-$query = "SELECT * FROM slitting_product WHERE status = 'PENDING' ORDER BY date_in DESC";
+$query = "SELECT * FROM slitting_product WHERE status = 'WAITING' ORDER BY date_in DESC";
 $result = $conn->query($query);
 ?>
 

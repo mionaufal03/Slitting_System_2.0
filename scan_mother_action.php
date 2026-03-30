@@ -100,45 +100,80 @@ if (!$mother) {
 }
 
 // =====================
-// 7) Semak log terakhir
+// 7) Handle Scan Logic based on mother_coil status
 // =====================
-$stmt = $conn->prepare("SELECT * FROM raw_material_log WHERE lot_no=? AND coil_no=? ORDER BY id DESC LIMIT 1");
-$stmt->bind_param("ss", $lot_no, $coil_no);
-$stmt->execute();
-$log = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+$mother_id = (int)$mother['id'];
 
-if (!$log) {
-    // IN (first time)
-    $stmt = $conn->prepare("INSERT INTO raw_material_log
-        (product, lot_no, coil_no, width, length, status, date_in)
-        VALUES (?, ?, ?, ?, ?, 'IN', NOW())");
-    $stmt->bind_param(
-        "sssss",
-        $mother['product'],
-        $mother['lot_no'],
-        $mother['coil_no'],
-        $mother['width'],
-        $mother['length']
-    );
+// Begin transaction for data consistency
+$conn->begin_transaction();
+
+try {
+    // Lock the row for update to prevent race conditions
+    $stmt = $conn->prepare("SELECT status FROM mother_coil WHERE id=? FOR UPDATE");
+    $stmt->bind_param("i", $mother_id);
     $stmt->execute();
+    $result = $stmt->get_result();
+    $currentThreadMother = $result->fetch_assoc();
+    $currentStatus = $currentThreadMother['status'];
     $stmt->close();
 
-    back_to($returnUrl, "in");
+    if ($currentStatus === 'NEW' || $currentStatus === null) {
+        // First scan: NEW -> IN
+        $stmt = $conn->prepare("UPDATE mother_coil SET status='IN', date_in=NOW() WHERE id=?");
+        $stmt->bind_param("i", $mother_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Add to raw_material_log as IN
+        $stmt = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, coil_no, length, width, status, date_in, action, remark) VALUES (?, ?, ?, ?, ?, 'IN', NOW(), 'IN', 'Scanned from mother coil')");
+        $stmt->bind_param("ssddd",
+            $mother['product'],
+            $mother['lot_no'],
+            $mother['coil_no'],
+            $mother['length'],
+            $mother['width']
+        );
+        $stmt->execute();
+        $stmt->close();
+
+        // Add to log
+        $stmt = $conn->prepare("INSERT INTO mother_coil_log (mother_id, status) VALUES (?, 'IN')");
+        $stmt->bind_param("i", $mother_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        back_to($returnUrl, "in");
+
+    } elseif ($currentStatus === 'IN') {
+        // Second scan: IN -> OUT
+        $stmt = $conn->prepare("UPDATE mother_coil SET status='OUT', date_out=NOW() WHERE id=?");
+        $stmt->bind_param("i", $mother_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Add to log
+        $stmt = $conn->prepare("INSERT INTO mother_coil_log (mother_id, status) VALUES (?, 'OUT')");
+        $stmt->bind_param("i", $mother_id);
+        $stmt->execute();
+        $stmt->close();
+        
+        $conn->commit();
+
+        // Redirect to add_slitting page
+        $go = "add_slitting.php?mother_id=" . $mother_id;
+        header("Location: $go");
+        exit;
+
+    } elseif ($currentStatus === 'OUT') {
+        // Already scanned out
+        $conn->rollback();
+        back_to($returnUrl, "already_out");
+    }
+
+} catch (Exception $e) {
+    $conn->rollback();
+    // Log error or handle it as needed
+    error_log("Scan transaction failed: " . $e->getMessage());
+    back_to($returnUrl, "error");
 }
-
-if ($log['status'] === 'IN') {
-    // OUT
-    $stmt = $conn->prepare("UPDATE raw_material_log SET status='OUT', date_out=NOW() WHERE id=?");
-    $stmt->bind_param("i", $log['id']);
-    $stmt->execute();
-    $stmt->close();
-
-    // ✅ Terus pergi add_slitting (tak kira scan dari page mana)
-    $go = "add_slitting.php?mother_id=" . (int)$mother['id'];
-    header("Location: $go");
-    exit;
-}
-
-// Sudah OUT
-back_to($returnUrl, "already_out");
