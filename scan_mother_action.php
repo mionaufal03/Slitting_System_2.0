@@ -126,7 +126,7 @@ try {
 
         // Add to raw_material_log as IN
         $stmt = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, coil_no, length, width, status, date_in, action, remark) VALUES (?, ?, ?, ?, ?, 'IN', NOW(), 'IN', 'Scanned from mother coil')");
-        $stmt->bind_param("ssddd",
+        $stmt->bind_param("sssss",
             $mother['product'],
             $mother['lot_no'],
             $mother['coil_no'],
@@ -146,32 +146,8 @@ try {
         back_to($returnUrl, "in");
 
     } elseif ($currentStatus === 'IN') {
-        // Second scan: IN -> OUT
-        $stmt = $conn->prepare("UPDATE mother_coil SET status='OUT', date_out=NOW() WHERE id=?");
-        $stmt->bind_param("i", $mother_id);
-        $stmt->execute();
-        $stmt->close();
-
-        // Add to raw_material_log as OUT
-        $stmt = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, coil_no, length, width, status, date_out, action, remark) VALUES (?, ?, ?, ?, ?, 'OUT', NOW(), 'OUT', 'Scanned out from mother coil')");
-        $stmt->bind_param(
-            "ssddd",
-            $mother['product'],
-            $mother['lot_no'],
-            $mother['coil_no'],
-            $mother['length'],
-            $mother['width']
-        );
-        $stmt->execute();
-        $stmt->close();
-
-        // Add to log
-        $stmt = $conn->prepare("INSERT INTO mother_coil_log (mother_id, status) VALUES (?, 'OUT')");
-        $stmt->bind_param("i", $mother_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $conn->commit();
+        // Second scan: redirect to slitting form without changing status
+        $conn->rollback(); // Just release the lock, no changes needed here.
 
         // Redirect to add_slitting page
         $go = "add_slitting.php?mother_id=" . $mother_id;

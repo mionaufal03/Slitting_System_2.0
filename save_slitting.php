@@ -74,6 +74,45 @@ for($i = 0; $i < $total; $i++){
     error_log("Slitting product $product_id created - QR will be generated dynamically");
 }
 
+// ===================== HANDLE SFC (SAVE FOR CUT) =====================
+if (isset($_POST['save_to_sfc']) && $_POST['save_to_sfc'] == '1' && $source_data && $cut_type === 'normal') {
+    $total_slitted_width = 0;
+    foreach ($widths as $w) {
+        $total_slitted_width += floatval($w);
+    }
+
+    $original_width = floatval($source_data['width']);
+    $balance_width = $original_width - $total_slitted_width;
+
+    if ($balance_width > 0) {
+        $remark = 'SFC from slitting';
+        $sfc_action = 'sfc';
+
+        $stmt = $conn->prepare("INSERT INTO raw_material_log 
+                               (product, lot_no, coil_no, length, width, status, date_in, action, remark) 
+                               VALUES (?, ?, ?, ?, ?, 'IN', NOW(), ?, ?)");
+        
+        $original_length = isset($source_data['length']) ? $source_data['length'] : 0;
+
+        $stmt->bind_param("sssddss",
+            $source_data['product'],
+            $source_data['lot_no'],
+            $source_data['coil_no'],
+            $original_length,
+            $balance_width,
+            $sfc_action,
+            $remark
+        );
+
+        $stmt->execute();
+        $new_stock_id = $stmt->insert_id;
+        $stmt->close();
+        
+        error_log("SFC balance saved as new raw material log with ID: $new_stock_id, Width: {$balance_width}mm");
+    }
+}
+
+
 // ===================== UPDATE RAW MATERIAL LOG =====================
 if($source_data) {
     $action_value = $cut_type; // 'normal' or 'cut_into_2'
@@ -97,6 +136,16 @@ if($source_data) {
             $source_data['coil_no']
         );
         
+        $stmt->execute();
+        $stmt->close();
+
+        // Also update the mother_coil table itself
+        $stmt = $conn->prepare("UPDATE mother_coil
+                               SET status='OUT',
+                                   date_out=NOW()
+                               WHERE id=?");
+
+        $stmt->bind_param("i", $mother_id);
         $stmt->execute();
         $stmt->close();
         

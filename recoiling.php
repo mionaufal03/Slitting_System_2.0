@@ -12,19 +12,53 @@ if ($_SESSION['role'] !== 'slitting') {
 
 include 'config.php';
 
-/**
- * ✅ Parent list (recoiling_product)
- */
+// New combined query
 $result = $conn->query("
-    SELECT *
-    FROM recoiling_product
+    (SELECT
+        id,
+        status,
+        product,
+        lot_no,
+        coil_no,
+        roll_no,
+        width,
+        length,
+        actual_length,
+        new_length,
+        date_in,
+        completed_at,
+        remark,
+        'recoiling_product' as source_table
+    FROM recoiling_product)
+
+    UNION ALL
+
+    (SELECT
+        id,
+        'sfc' as status,
+        product,
+        lot_no,
+        coil_no,
+        '-' as roll_no,
+        width,
+        length,
+        length as actual_length,
+        NULL as new_length,
+        date_in,
+        NULL as completed_at,
+        remark,
+        'raw_material_log' as source_table
+    FROM raw_material_log
+    WHERE status = 'IN' AND action = 'sfc')
+
     ORDER BY
       CASE status
-        WHEN 'pending' THEN 1
-        WHEN 'completed' THEN 2
-        ELSE 3
+        WHEN 'sfc' THEN 1
+        WHEN 'pending' THEN 2
+        WHEN 'completed' THEN 3
+        ELSE 4
       END,
-      id ASC
+      date_in ASC
 ");
 
 
@@ -42,9 +76,14 @@ if ($childRes) {
     }
 }
 
-// kira total pending/completed
+// Correctly count summary
+$sfc = 0;
 $pending = 0;
 $completed = 0;
+
+// SFC count now comes from raw_material_log
+$resSfc = $conn->query("SELECT COUNT(*) AS c FROM raw_material_log WHERE status='IN' AND action='sfc'");
+if ($resSfc) $sfc = (int)($resSfc->fetch_assoc()['c'] ?? 0);
 
 $resPending = $conn->query("SELECT COUNT(*) AS c FROM recoiling_product WHERE status='pending'");
 if ($resPending) $pending = (int)($resPending->fetch_assoc()['c'] ?? 0);
@@ -72,6 +111,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
         .status-card h2 { font-size:2.5rem; font-weight:700; margin:0; color:#fff; }
         .status-card.pending { background: linear-gradient(135deg, #ffc107, #ff9800); }
         .status-card.completed { background: linear-gradient(135deg, #28a745, #20c997); }
+        .status-card.sfc { background: linear-gradient(135deg, #0dcaf0, #0d6efd); }
 
         .table-responsive { background:#fff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); padding:20px; }
         table thead th { background:#212529 !important; color:#fff !important; font-weight:600; text-transform:uppercase; font-size:.85rem; padding:15px 10px; border:none; white-space:nowrap; text-align:center; }
@@ -129,6 +169,10 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
     </div>
 
     <div class="status-cards">
+        <div class="status-card sfc">
+            <h5>SFC</h5>
+            <h2><?= (int)$sfc ?></h2>
+        </div>
         <div class="status-card pending">
             <h5>Pending</h5>
             <h2><?= (int)$pending ?></h2>
@@ -162,9 +206,12 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
             <?php if ($result && $result->num_rows > 0): ?>
                 <?php while ($row = $result->fetch_assoc()): ?>
                     <?php
+                      $isSfcFromRaw = ($row['source_table'] === 'raw_material_log');
                       $rid = (int)$row['id'];
-                      $isPending = (($row['status'] ?? '') === 'pending');
-                      $kids = $children[$rid] ?? [];
+                      $status = $row['status'] ?? '';
+                      $canRecoil = ($status === 'pending' || $status === 'sfc');
+                      // Child rows only apply to recoiling_product entries
+                      $kids = !$isSfcFromRaw ? ($children[$rid] ?? []) : [];
                     ?>
 
                     <!-- ===== PARENT ROW ===== -->
@@ -172,7 +219,9 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                       <td><strong><?= $rid ?></strong></td>
 
                       <td>
-                        <?php if ($isPending): ?>
+                        <?php if ($status === 'sfc'): ?>
+                          <span class="badge bg-info text-dark">SFC</span>
+                        <?php elseif ($status === 'pending'): ?>
                           <span class="badge bg-warning text-dark">PENDING</span>
                         <?php else: ?>
                           <span class="badge bg-success">COMPLETED</span>
@@ -182,7 +231,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                       <td><?= htmlspecialchars($row['product'] ?? '-') ?></td>
                       <td><?= htmlspecialchars((($kids[0]['lot_no'] ?? $row['lot_no'] ?? '-') . ' ' . ($kids[0]['coil_no'] ?? $row['coil_no'] ?? ''))) ?></td>
                       <td>
-                        <strong><?= htmlspecialchars($kids[0]['roll_no'] ?? ($row['roll_no'] ?? '-')) ?></strong>
+                         <strong><?= htmlspecialchars($kids[0]['roll_no'] ?? ($row['roll_no'] ?? '-')) ?></strong>
                       </td>
 
                       <td><?= isset($row['width']) ? number_format((float)$row['width']) : '-' ?></td>
@@ -191,6 +240,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                       <td>
                         <?php
                           $nl = isset($kids[0]['actual_length']) ? (float)$kids[0]['actual_length'] : (float)($row['new_length'] ?? 0);
+                          if ($isSfcFromRaw) $nl = 0; // Not applicable for SFC raw yet
                           echo $nl > 0 ? '<strong style="color:#28a745;">' . number_format($nl) . '</strong>' : '-';
                         ?>
                       </td>
@@ -205,7 +255,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                       </td>
 
                       <td>
-                        <?php if ($isPending): ?>
+                        <?php if ($canRecoil): ?>
                           <button class="btn btn-primary btn-sm mb-1"
                             onclick='showRecoilingModal(
                               <?= (int)$row["id"] ?>,
@@ -214,7 +264,8 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                               <?= json_encode($row["coil_no"] ?? "") ?>,
                               <?= json_encode($row["roll_no"] ?? "") ?>,
                               <?= json_encode((float)($row["width"] ?? 0)) ?>,
-                              <?= json_encode((float)($row["actual_length"] ?? 0)) ?>
+                              <?= json_encode((float)($row["actual_length"] ?? 0)) ?>,
+                              <?= json_encode($row["source_table"]) ?>
                             )'>
                             <i class="bi bi-play-circle"></i> Recoiling Now
                           </button>
@@ -224,7 +275,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                       </td>
                     </tr>
 
-                    <!-- ===== CHILD ROWS ===== -->
+                    <!-- ===== CHILD ROWS (Only for non-SFC items) ===== -->
                     <?php if (count($kids) > 1): ?>
                       <?php for ($i = 1; $i < count($kids); $i++): ?>
                         <tr class="child-row">
@@ -233,31 +284,26 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                               <span class="icon"><i class="bi bi-arrow-return-right"></i></span>
                             </div>
                           </td>
-
                           <td>
-                            <?php if ($isPending): ?>
+                            <?php if ($status === 'pending'): ?>
                               <span class="badge bg-warning text-dark">PENDING</span>
                             <?php else: ?>
                               <span class="badge bg-success">COMPLETED</span>
                             <?php endif; ?>
                           </td>
-
                           <td><?= htmlspecialchars($row['product'] ?? '-') ?></td>
-                          <td><?= htmlspecialchars(($kids[$i]['lot_no'] ?? '-') . ' ' . ($kids[$i]['coil_no'] ?? ($row['coil_no'] ?? ''))) ?></td>                          <td><strong><?= htmlspecialchars($kids[$i]['roll_no'] ?? '-') ?></strong></td>
+                          <td><?= htmlspecialchars(($kids[$i]['lot_no'] ?? '-') . ' ' . ($kids[$i]['coil_no'] ?? ($row['coil_no'] ?? ''))) ?></td>
+                          <td><strong><?= htmlspecialchars($kids[$i]['roll_no'] ?? '-') ?></strong></td>
                           <td><?= isset($kids[$i]['width']) ? number_format((float)$kids[$i]['width']) : '-' ?></td>
                           <td><?= isset($kids[$i]['length']) ? number_format((float)$kids[$i]['length']) : '-' ?></td>
-
                           <td>
                             <?php
                               $childLen = isset($kids[$i]['actual_length']) ? (float)$kids[$i]['actual_length'] : 0;
                               echo $childLen > 0 ? '<strong style="color:#28a745;">' . number_format($childLen) . '</strong>' : '-';
                             ?>
                           </td>
-
-                          <!-- ✅ tak ulang -->
                           <td>-</td>
                           <td>-</td>
-
                           <td><span style="font-size:0.85rem; color:#6c757d; font-style:italic;">-</span></td>
                           <td><span class="badge bg-success">Done</span></td>
                         </tr>
@@ -269,7 +315,6 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
                 <tr><td colspan="12" class="text-center text-muted py-5">No records found.</td></tr>
             <?php endif; ?>
             </tbody>
-
         </table>
     </div>
 
@@ -278,7 +323,7 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
     </a>
 </div>
 
-<!-- Modal (kekalkan modal + JS awak yang sedia ada) -->
+<!-- Modal -->
 <div class="modal fade" id="recoilingModal" tabindex="-1">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
@@ -289,7 +334,9 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
 
       <form method="post" action="recoiling_handler.php" id="recoilingForm">
         <input type="hidden" name="action" value="start_and_complete_recoiling">
-        <input type="hidden" name="id" id="recoil_id">
+        <input type="hidden" name="recoiling_id" id="recoil_id">
+        <input type="hidden" name="source_table" id="recoil_source_table">
+        <input type="hidden" name="source_log_id" id="recoil_source_log_id">
 
         <div class="modal-body">
           <div class="info-box">
@@ -308,12 +355,10 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
 
           <div class="mb-3">
             <label class="form-label"><strong>Step 1: Select Cut Type</strong></label>
-
             <div class="form-check">
               <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()">
               <label class="form-check-label" for="cutNormal">Normal</label>
             </div>
-
             <div class="form-check">
               <input class="form-check-input" type="radio" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()">
               <label class="form-check-label" for="cutInto2">Cut Into 2</label>
@@ -339,16 +384,10 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- ✅ Paste balik JS awak yang sedia ada di sini (yang modal + form validation) -->
-<!-- Saya tak ubah JS sebab code awak panjang & dah ok -->
-</body>
-</html>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let productData = {};
 
-function showRecoilingModal(id, product, lot_no, coil_no, roll_no, width, length) {
+function showRecoilingModal(id, product, lot_no, coil_no, roll_no, width, length, source_table) {
   productData = {
     id,
     product,
@@ -356,19 +395,30 @@ function showRecoilingModal(id, product, lot_no, coil_no, roll_no, width, length
     coil_no,
     roll_no,
     width: parseFloat(width),
-    length: parseFloat(length)
+    length: parseFloat(length),
+    source_table
   };
 
-  document.getElementById('recoil_id').value = id;
+  // Set form values
+  document.getElementById('recoil_source_table').value = source_table;
+  if (source_table === 'raw_material_log') {
+    document.getElementById('recoil_source_log_id').value = id;
+    document.getElementById('recoil_id').value = ''; // Not a recoiling_product yet
+  } else {
+    document.getElementById('recoil_id').value = id;
+    document.getElementById('recoil_source_log_id').value = '';
+  }
+
+  // Set modal display values
   document.getElementById('modal_product').textContent = product;
   document.getElementById('modal_lot').textContent = lot_no + ' ' + coil_no;
   document.getElementById('modal_roll').textContent = roll_no;
   document.getElementById('modal_width').textContent = width;
   document.getElementById('modal_length').textContent = length;
 
+  // Reset form state
   document.getElementById('cutNormal').checked = false;
   document.getElementById('cutInto2').checked = false;
-
   document.getElementById('rollsContainer').innerHTML = '';
   document.getElementById('rollDetailsForm').style.display = 'none';
   document.getElementById('submitBtn').style.display = 'none';
