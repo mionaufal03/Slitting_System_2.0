@@ -152,12 +152,25 @@ try {
         $stmt->execute();
         $stmt->close();
 
+        // Add to raw_material_log as OUT
+        $stmt = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, coil_no, length, width, status, date_out, action, remark) VALUES (?, ?, ?, ?, ?, 'OUT', NOW(), 'OUT', 'Scanned out from mother coil')");
+        $stmt->bind_param(
+            "ssddd",
+            $mother['product'],
+            $mother['lot_no'],
+            $mother['coil_no'],
+            $mother['length'],
+            $mother['width']
+        );
+        $stmt->execute();
+        $stmt->close();
+
         // Add to log
         $stmt = $conn->prepare("INSERT INTO mother_coil_log (mother_id, status) VALUES (?, 'OUT')");
         $stmt->bind_param("i", $mother_id);
         $stmt->execute();
         $stmt->close();
-        
+
         $conn->commit();
 
         // Redirect to add_slitting page
