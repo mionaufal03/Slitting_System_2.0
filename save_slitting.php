@@ -113,6 +113,31 @@ if (isset($_POST['save_to_sfc']) && $_POST['save_to_sfc'] == '1' && $source_data
 }
 
 
+// ===================== NEW: HANDLE SFC BALANCE FOR NORMAL CUT =====================
+if ($cut_type === 'normal' && isset($_POST['sfc_balance_width']) && is_numeric($_POST['sfc_balance_width']) && floatval($_POST['sfc_balance_width']) > 0) {
+    $sfc_width = (string)floatval($_POST['sfc_balance_width']);
+    
+    if ($source_data) {
+        $original_length = floatval($source_data['length']);
+
+        $sfc_stmt = $conn->prepare(
+            "INSERT INTO sfc (product, lot_no, coil_no, width, length, date_created) VALUES (?, ?, ?, ?, ?, NOW())"
+        );
+        $sfc_stmt->bind_param(
+            "ssssd",
+            $source_data['product'],
+            $source_data['lot_no'],
+            $source_data['coil_no'],
+            $sfc_width,
+            $original_length
+        );
+        $sfc_stmt->execute();
+        $sfc_stmt->close();
+        error_log("SFC Normal Cut Balance saved to sfc table. Width: {$sfc_width}mm, Length: {$original_length}m");
+    }
+}
+
+
 // ===================== UPDATE RAW MATERIAL LOG =====================
 if($source_data) {
     $action_value = $cut_type; // 'normal' or 'cut_into_2'

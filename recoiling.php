@@ -77,14 +77,6 @@ if ($childRes) {
 }
 
 // Correctly count summary
-$sfc = 0;
-$pending = 0;
-$completed = 0;
-
-// SFC count now comes from raw_material_log
-$resSfc = $conn->query("SELECT COUNT(*) AS c FROM raw_material_log WHERE status='IN' AND action='sfc'");
-if ($resSfc) $sfc = (int)($resSfc->fetch_assoc()['c'] ?? 0);
-
 $resPending = $conn->query("SELECT COUNT(*) AS c FROM recoiling_product WHERE status='pending'");
 if ($resPending) $pending = (int)($resPending->fetch_assoc()['c'] ?? 0);
 
@@ -169,10 +161,6 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
     </div>
 
     <div class="status-cards">
-        <div class="status-card sfc">
-            <h5>SFC</h5>
-            <h2><?= (int)$sfc ?></h2>
-        </div>
         <div class="status-card pending">
             <h5>Pending</h5>
             <h2><?= (int)$pending ?></h2>
@@ -357,11 +345,11 @@ if ($resCompleted) $completed = (int)($resCompleted->fetch_assoc()['c'] ?? 0);
             <label class="form-label"><strong>Step 1: Select Cut Type</strong></label>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()">
-              <label class="form-check-label" for="cutNormal">Normal</label>
+              <label class="form-check-label" for="cutNormal">Cut defect at start/end</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()">
-              <label class="form-check-label" for="cutInto2">Cut Into 2</label>
+              <label class="form-check-label" for="cutInto2">Cut Length Into 2</label>
             </div>
           </div>
 

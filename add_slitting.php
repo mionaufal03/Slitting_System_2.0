@@ -131,12 +131,26 @@ if ($from_stock) {
         <!-- Step 4: Roll Details Form -->
         <div id="slittingForm"></div>
 
+        <div id="normalCutSfcSection" style="display: none;" class="p-3 my-3 border rounded bg-light">
+            <h5><i class="bi bi-box-seam"></i> Shop Floor Control (SFC) Balance</h5>
+            <p><small>If there is leftover material after cutting the rolls, enter the balance width here to save it to SFC inventory. Leave blank if there is no balance.</small></p>
+            <div class="row">
+                <div class="col-md-12">
+                    <label class="form-label"><strong>Balance Width to Save (mm)</strong></label>
+                    <input type="number" step="0.1" name="sfc_balance_width" class="form-control" placeholder="Optional: Enter width to save">
+                </div>
+            </div>
+        </div>
+
         <button type="submit" class="btn btn-primary mt-3" id="submitBtn" style="display:none;">
             <i class="bi bi-check-circle"></i> Save
         </button>
         <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-danger mt-3">Cancel</a>
     </form>
 </div>
+
+
+
 
 <script>
 const sourceData = {
@@ -167,42 +181,6 @@ function calculateStock() {
     }
 }
 
-function handleCutTypeChange(){
-    const cutType = document.querySelector('input[name="cut_type"]:checked')?.value;
-    const cutInto2Section = document.getElementById('cutInto2Section');
-    const rollCountSection = document.getElementById('rollCountSection');
-    const slittingForm = document.getElementById('slittingForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const totalSelect = document.getElementById('total');
-    const sfcSection = document.getElementById('sfcSection');
-
-    // Reset form
-    slittingForm.innerHTML = '';
-    submitBtn.style.display = 'none';
-    totalSelect.value = '';
-    sfcSection.style.display = 'none';
-
-
-    if (cutType !== 'cut_into_2') {
-        document.getElementById('slitQuantity').value = '';
-        document.getElementById('stock').value = '';
-        document.getElementById('slitQuantity').required = false;
-    }
-
-    if (cutType === 'normal') {
-        cutInto2Section.style.display = 'none';
-        rollCountSection.style.display = 'block';
-    } else if (cutType === 'cut_into_2') {
-        cutInto2Section.style.display = 'block';
-        rollCountSection.style.display = 'block';
-        document.getElementById('slitQuantity').required = true;
-        calculateStock();
-    } else {
-        cutInto2Section.style.display = 'none';
-        rollCountSection.style.display = 'none';
-    }
-}
-
 function updateLotNoDisplay(rollIndex) {
     const cutSelects = document.querySelectorAll('select[name="cut_letter[]"]');
     const cutLetter = cutSelects[rollIndex]?.value || '';
@@ -217,24 +195,36 @@ function updateLotNoDisplay(rollIndex) {
     `;
 }
 
-function updateSfcCheckbox() {
-    const total = parseInt(document.getElementById('total').value) || 0;
-    const widths = document.querySelectorAll('input[name="width[]"]');
-    let totalWidth = 0;
-    widths.forEach(w => {
-        totalWidth += parseFloat(w.value) || 0;
-    });
-
-    const balance_width = sourceData.originalWidth - totalWidth;
-    const sfcSection = document.getElementById('sfcSection');
-    const sfcLabel = document.getElementById('sfcLabel');
+function handleCutTypeChange(){
     const cutType = document.querySelector('input[name="cut_type"]:checked')?.value;
+    const cutInto2Section = document.getElementById('cutInto2Section');
+    const rollCountSection = document.getElementById('rollCountSection');
+    const slittingForm = document.getElementById('slittingForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const totalSelect = document.getElementById('total');
+    const normalCutSfcSection = document.getElementById('normalCutSfcSection');
 
-    if (cutType === 'normal' && balance_width > 0) {
-        sfcSection.style.display = 'block';
-        sfcLabel.textContent = `Balance: ${balance_width.toFixed(2)}mm - Save to SFC?`;
+    // Reset form
+    slittingForm.innerHTML = '';
+    submitBtn.style.display = 'none';
+    totalSelect.value = '';
+    
+    // Hide all optional sections
+    if (normalCutSfcSection) normalCutSfcSection.style.display = 'none';
+
+    if (cutType === 'normal') {
+        cutInto2Section.style.display = 'none';
+        rollCountSection.style.display = 'block';
+        if (normalCutSfcSection) normalCutSfcSection.style.display = 'block';
+        document.getElementById('slitQuantity').required = false;
+    } else if (cutType === 'cut_into_2') {
+        cutInto2Section.style.display = 'block';
+        rollCountSection.style.display = 'block';
+        document.getElementById('slitQuantity').required = true;
+        calculateStock();
     } else {
-        sfcSection.style.display = 'none';
+        cutInto2Section.style.display = 'none';
+        rollCountSection.style.display = 'none';
     }
 }
 
@@ -282,6 +272,10 @@ function generateForm(){
     if (cutType === 'cut_into_2') {
         autoLength = parseFloat(document.getElementById('slitQuantity').value) || sourceData.originalLength;
         lengthReadonly = false; //editable
+    } else {
+        // For normal cut, length is per-roll and should not be readonly
+        autoLength = ''; 
+        lengthReadonly = false;
     }
 
     const lengthLabel = sourceData.fromStock ? 'Available length' : 'Original length';
@@ -313,15 +307,15 @@ function generateForm(){
 
                 <div class="mb-2">
                     <label class="form-label">Length (meter)</label>
-                    <input type="number" step="0.1" name="length[]" class="form-control"
-                           value="${autoLength.toFixed(1)}"
+                    <input type="number" step="0.1" name="length[]" class="form-control length-input"
+                           value="${autoLength}"
                            ${lengthReadonly ? 'readonly style="background:#e9ecef;"' : ''}
                            required>
                 </div>
 
                 <div class="mb-2">
                     <label class="form-label">Width (mm)</label>
-                    <input type="number" step="0.1" name="width[]" class="form-control" oninput="updateSfcCheckbox()" required>
+                    <input type="number" step="0.1" name="width[]" class="form-control" required>
                 </div>
 
                 <div class="info-badge" id="infoBadge${i-1}">
@@ -332,7 +326,6 @@ function generateForm(){
     }
 
     container.innerHTML = html;
-    updateSfcCheckbox();
 }
 </script>
 
