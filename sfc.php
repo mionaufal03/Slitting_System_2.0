@@ -47,9 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sfc_id']) && isset($_
             } elseif ($action === 'SELL') {
                 // Insert into slitting_product for QC
                 $stmt = $conn->prepare(
-                    "INSERT INTO slitting_product (product, lot_no, coil_no, width, length, status, date_in, cut_type) VALUES (?, ?, ?, ?, ?, 'waiting_qc', NOW(), 'sfc_sell')"
+                    "INSERT INTO slitting_product (product, lot_no, coil_no, width, length, status, date_in, date_out, cut_type, source) VALUES (?, ?, ?, ?, ?, 'WAITING', NOW(), NOW(), 'sfc_sell', ?)"
                 );
-                $stmt->bind_param("ssssd", $sfc['product'], $sfc['lot_no'], $sfc['coil_no'], $sfc['width'], $sfc['length']);
+                $source_value = 'sfc';
+                $stmt->bind_param("ssssds", $sfc['product'], $sfc['lot_no'], $sfc['coil_no'], $sfc['width'], $sfc['length'], $source_value);
                 $stmt->execute();
                 $stmt->close();
             }

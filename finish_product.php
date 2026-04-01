@@ -231,7 +231,7 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
     $output = fopen('php://output', 'w');
 
     // header csv
-    fputcsv($output, ['ID','Status','Product','Lot No + Coil No','Roll No','Width','Length','Actual Length','Date Out','Delivered At']);
+    fputcsv($output, ['ID','Status','Source','Product','Lot No + Coil No','Roll No','Width','Length','Actual Length','Date Out','Delivered At']);
 
     // isi data
     $data = $conn->query($sql);
@@ -250,6 +250,7 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
         fputcsv($output, [
             $row['id'],
             $statusText,
+            ucfirst($row['source'] ?? 'raw_material'),
             $row['product'],
             $lotCoil,
             $row['roll_no'],
@@ -484,6 +485,7 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
                 <tr>
                     <th>ID</th>
                     <th>Status</th>
+                    <th>Source</th>
                     <th>Product</th>
                     <th>Lot No</th>
                     <th>Roll No.</th>
@@ -527,6 +529,7 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
                 <tr class="<?= $rowClass ?>">
                     <td><?= $row['id'] ?></td>
                     <td><?= $statusBadge ?></td>
+                    <td><?= htmlspecialchars(ucfirst($row['source'] ?? 'raw_material')) ?></td>
                     <td><?= htmlspecialchars($row['product'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($lotCoil) ?></td>
                     <td><?= htmlspecialchars($row['roll_no'] ?? '-') ?></td>
@@ -568,7 +571,7 @@ if (isset($_GET['download']) && $_GET['download'] == 'excel') {
                     </td>
                 </tr>
             <?php endwhile; else: ?>
-                <tr><td colspan="12">No data found.</td></tr>
+                <tr><td colspan="13">No data found.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>

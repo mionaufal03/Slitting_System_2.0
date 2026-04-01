@@ -210,7 +210,7 @@ $lotCoil = trim($product['lot_no']) . ' ' . trim($product['coil_no']);
     <div class="qr-preview">
         <div class="badge-text">INTERNAL USE</div>
         <img src="generate_qr.php?id=<?= $id ?>&type=slitting" alt="QR Code">
-        <div class="roll-number"><?= htmlspecialchars($product['roll_no']) ?></div>
+        <div class="roll-number"><?= htmlspecialchars($product['roll_no'] ?? '') ?></div>
     </div>
 
     <form method="POST" action="print_product.php">
@@ -225,7 +225,7 @@ $lotCoil = trim($product['lot_no']) . ' ' . trim($product['coil_no']);
             <tr>
                 <td>Grade</td>
                 <td>:</td>
-                <td><strong><?= htmlspecialchars($product['product']) ?></strong></td>
+                <td><strong><?= htmlspecialchars($product['product'] ?? '') ?></strong></td>
             </tr>
             <tr>
                 <td>Size</td>

@@ -48,11 +48,12 @@ for($i = 0; $i < $total; $i++){
 
     // Insert into slitting_product
     $stmt = $conn->prepare("INSERT INTO slitting_product 
-        (mother_id, product, lot_no, coil_no, roll_no, width, length, cut_type, slit_quantity, stock, status, is_completed, stock_counted) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IN', 0, 0)");
+        (mother_id, product, lot_no, coil_no, roll_no, width, length, cut_type, slit_quantity, stock, status, is_completed, stock_counted, source) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IN', 0, 0, ?)");
 
+    $source_value = 'raw_material';
     $stmt->bind_param(
-        "isssssssdd",
+        "isssssssdds",
         $mother_id,
         $product,
         $final_lot_no,
@@ -62,7 +63,8 @@ for($i = 0; $i < $total; $i++){
         $length,
         $cut_type,
         $slit_quantity,
-        $stock
+        $stock,
+        $source_value
     );
 
     $stmt->execute();
