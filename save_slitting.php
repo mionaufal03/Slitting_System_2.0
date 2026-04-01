@@ -74,6 +74,7 @@ for($i = 0; $i < $total; $i++){
     error_log("Slitting product $product_id created - QR will be generated dynamically");
 }
 
+/*
 // ===================== HANDLE SFC (SAVE FOR CUT) =====================
 if (isset($_POST['save_to_sfc']) && $_POST['save_to_sfc'] == '1' && $source_data && $cut_type === 'normal') {
     $total_slitted_width = 0;
@@ -111,6 +112,7 @@ if (isset($_POST['save_to_sfc']) && $_POST['save_to_sfc'] == '1' && $source_data
         error_log("SFC balance saved as new raw material log with ID: $new_stock_id, Width: {$balance_width}mm");
     }
 }
+*/
 
 
 // ===================== NEW: HANDLE SFC BALANCE FOR NORMAL CUT =====================
