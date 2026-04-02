@@ -136,7 +136,7 @@ include 'header.php';
     table th:nth-child(13) { width: 120px; }
 </style>
 
-<h2>Finish Product</h2>
+<h2 class="mb-4"><i class="bi bi-check-circle me-2"></i>Finish Product</h2>
 
 <form id="scanFormProduct" method="post" action="scan_product_action.php" autocomplete="off">
     <input id="qrInputProduct" type="text" name="qr" style="position:fixed; left:-9999px; opacity:0;" autofocus>
