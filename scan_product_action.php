@@ -63,7 +63,7 @@ $lot  = trim($lot);
 $coil = trim($coil);
 $roll = trim($roll);
 
-if ($lot === '' || $coil === '' || $roll === '') {
+if ($lot === '' || $coil === '') {
     header("Location: $BASE_URL/finish_product.php?scan=invalid");
     exit;
 }
@@ -82,14 +82,25 @@ $redirBase = "$BASE_URL/finish_product.php?month=$month&year=$year";
 // 7) Get product by key (lot+coil+roll)
 // FIX: ORDER BY id DESC supaya ambil record terbaru
 // =====================================================
-$stmt = $conn->prepare("
-    SELECT id, status
-    FROM slitting_product
-    WHERE lot_no=? AND coil_no=? AND roll_no=?
-    ORDER BY id DESC
-    LIMIT 1
-");
-$stmt->bind_param("sss", $lot, $coil, $roll);
+if ($roll === '') {
+    $stmt = $conn->prepare("
+        SELECT id, status
+        FROM slitting_product
+        WHERE lot_no=? AND coil_no=? AND (roll_no IS NULL OR roll_no='')
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param("ss", $lot, $coil);
+} else {
+    $stmt = $conn->prepare("
+        SELECT id, status
+        FROM slitting_product
+        WHERE lot_no=? AND coil_no=? AND roll_no=?
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param("sss", $lot, $coil, $roll);
+}
 $stmt->execute();
 $product = $stmt->get_result()->fetch_assoc();
 $stmt->close();

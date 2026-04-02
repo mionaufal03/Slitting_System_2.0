@@ -113,17 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $result = $conn->query("SELECT * FROM mother_coil ORDER BY id ASC");
+
+$page_title = 'Mother Coil';
+include 'header.php';
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Mother Coil</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</head>
-<body class="p-4">
-<div class="container">
     <h2 class="mb-4">Mother Coil List</h2>
 
     <div class="mb-3">
@@ -428,6 +421,4 @@ document.querySelectorAll('.editBtn').forEach(btn => {
   <div><a href="logout.php" class="btn btn-secondary mt-3">Logout</a></div>
 <?php endif; ?>
 
-</div>
-</body>
-</html>
+<?php include 'footer.php'; ?>
