@@ -54,8 +54,8 @@ $success = $_GET['success'] ?? null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    // slitting view only
-    if ($_SESSION['role'] === 'slitting') {
+    // slitting can only add
+    if ($_SESSION['role'] === 'slitting' && $action !== 'add') {
         die("Admin view-only. Not allowed to modify.");
     }
 
@@ -120,7 +120,7 @@ include 'header.php';
 <h2 class="mb-4"><i class="bi bi-layer-forward me-2"></i>Mother Coil List</h2>
 
     <div class="mb-3">
-        <?php if ($_SESSION['role'] === 'mkl3'): ?>
+        <?php if (in_array($_SESSION['role'], ['mkl3', 'slitting'], true)): ?>
             <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addMotherModal">
                 Add Mother Coil
             </button>
