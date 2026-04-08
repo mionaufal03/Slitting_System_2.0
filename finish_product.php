@@ -34,15 +34,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// --- Handle Save Actual Length + OK ---
+// --- Handle Save Actual Length + OK (Sequential Entry Point) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_ok') {
     $id = intval($_POST['id']);
     $actual_length = trim($_POST['actual_length']);
+    
+    // Set stock_counted=1 and is_completed=1 to move it to the next state
     $stmt = $conn->prepare("UPDATE slitting_product SET actual_length=?, stock_counted=1, is_completed=1 WHERE id=?");
     $stmt->bind_param("si", $actual_length, $id);
     $stmt->execute();
     $stmt->close();
     
+    // Handle specific business logic for cut types
     $product = $conn->query("SELECT * FROM slitting_product WHERE id=$id")->fetch_assoc();
     if($product && $product['cut_type'] === 'cut_into_2' && $product['stock'] > 0) {
         $mother = $conn->query("SELECT * FROM mother_coil WHERE id={$product['mother_id']}")->fetch_assoc();
@@ -65,17 +68,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// --- Handle Send to Recoiling ---
+// --- Handle Send to Recoiling (Now an action FROM stock) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_to_recoiling') {
     $id = intval($_POST['product_id']);
-    $actual_length = floatval($_POST['actual_length']);
-    $conn->query("UPDATE slitting_product SET actual_length='$actual_length' WHERE id=$id");
     $res = $conn->query("SELECT * FROM slitting_product WHERE id = $id");
     if ($res->num_rows > 0) {
         $p = $res->fetch_assoc();
         $stmt = $conn->prepare("INSERT INTO recoiling_product (status, product, lot_no, coil_no, roll_no, width, length, actual_length) VALUES ('pending', ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssddd", $p['product'], $p['lot_no'], $p['coil_no'], $p['roll_no'], $p['width'], $p['length'], $actual_length);
+        $stmt->bind_param("ssssddd", $p['product'], $p['lot_no'], $p['coil_no'], $p['roll_no'], $p['width'], $p['length'], $p['actual_length']);
         if ($stmt->execute()) {
+            // Mark as recoiled so it disappears from this view logic
             $conn->query("UPDATE slitting_product SET is_recoiled=1 WHERE id=$id");
             header("Location: finish_product.php?success=recoiling");
             exit;
@@ -128,12 +130,11 @@ include 'header.php';
     table { table-layout: fixed; width: 100%; }
     table th, table td { word-wrap: break-word; vertical-align: middle; font-size: 13px; }
     table td img { max-width: 60px; max-height: 60px; display: block; margin: 0 auto; }
-    /* Column Widths */
     table th:nth-child(1) { width: 45px; } table th:nth-child(2) { width: 100px; } table th:nth-child(3) { width: 80px; }
     table th:nth-child(4) { width: 90px; } table th:nth-child(5) { width: 110px; } table th:nth-child(6) { width: 70px; }
     table th:nth-child(7) { width: 60px; } table th:nth-child(8) { width: 60px; } table th:nth-child(9) { width: 70px; }
     table th:nth-child(10) { width: 90px; } table th:nth-child(11) { width: 90px; } table th:nth-child(12) { width: 70px; }
-    table th:nth-child(13) { width: 120px; }
+    table th:nth-child(13) { width: 140px; }
 </style>
 
 <h2 class="mb-4"><i class="bi bi-check-circle me-2"></i>Finish Product</h2>
@@ -203,15 +204,21 @@ include 'header.php';
                 <td>
                     <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting approval</i></small>
                     <?php elseif($row['status'] == 'IN' && $row['is_completed'] == 0): ?>
-                        <a href="?edit=<?= $row['id'] ?>" class="btn btn-primary btn-sm">Update</a>
+                        <a href="?edit=<?= $row['id'] ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
                     <?php elseif($row['status'] == 'IN' && $row['stock_counted'] == 1): ?>
-                        <form method="post" style="display:inline;" onsubmit="return confirm('Send to reslit?')">
-                            <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
-                            <button type="submit" class="btn btn-warning btn-sm">Reslit</button>
-                        </form>
-                        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm">Print</a>
+                        <div class="d-flex flex-column gap-1">
+                            <form method="post" onsubmit="return confirm('Send to reslit?')">
+                                <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                                <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
+                            </form>
+                            <form method="post" onsubmit="return confirm('Move to Recoiling?')">
+                                <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                                <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
+                            </form>
+                            <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
+                        </div>
                     <?php else: ?>
-                        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm">Print</a>
+                        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -236,8 +243,7 @@ include 'header.php';
                     <small id="lengthWarnText" class="text-danger" style="display:none;">⚠️ Length mismatch detected!</small>
                 </div>
                 <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success">OK (To Stock)</button>
-                    <button type="button" class="btn btn-warning" id="recoilingBtn">Send to Recoiling</button>
+                    <button type="submit" class="btn btn-success" id="saveStockBtn" disabled>Save to Stock</button>
                 </div>
             </div>
             <div class="modal-footer"><a href="finish_product.php" class="btn btn-danger">Cancel</a></div>
@@ -247,17 +253,14 @@ include 'header.php';
 <script>
     const EXPECTED = <?= floatval($editData['length']) ?> - 3;
     const input = document.getElementById('actualLengthInput');
+    const saveBtn = document.getElementById('saveStockBtn');
+    
     input.addEventListener('input', () => {
+        // State-Based Validation: Enable button only if length is filled
+        saveBtn.disabled = (input.value === "" || parseFloat(input.value) <= 0);
+        
         const mismatch = Math.abs(parseFloat(input.value) - EXPECTED) > 0.5;
         document.getElementById('lengthWarnText').style.display = mismatch ? 'block' : 'none';
-    });
-    document.getElementById('recoilingBtn').addEventListener('click', () => {
-        if(!input.value) { alert('Enter length!'); return; }
-        if(confirm('Send to recoiling?')) {
-            const f = document.createElement('form'); f.method='POST';
-            f.innerHTML = `<input type='hidden' name='action' value='send_to_recoiling'><input type='hidden' name='product_id' value='<?= $editData['id'] ?>'><input type='hidden' name='actual_length' value='${input.value}'>`;
-            document.body.appendChild(f); f.submit();
-        }
     });
 </script>
 <?php endif; ?>
