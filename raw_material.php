@@ -207,18 +207,21 @@ include 'header.php';
     <div class="modal-dialog">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Manual Entry</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Single-Box Manual Entry</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="manualEntryForm">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Lot No.</label>
-                        <input type="text" class="form-control" id="manual_lot_no" placeholder="Example: ABC123" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Coil No.</label>
-                        <input type="text" class="form-control" id="manual_coil_no" placeholder="Example: 4567" required>
+                        <label class="form-label fw-bold">Enter Lot No & Coil No</label>
+                        <input type="text" class="form-control form-control-lg" id="combined_input" 
+                               placeholder="e.g., 826175 FK-1" required autofocus>
+                        <div id="validationFeedback" class="invalid-feedback">
+                            Please enter both Lot No and Coil No separated by a space (e.g., 826175 FK-1).
+                        </div>
+                        <div class="form-text mt-2">
+                            Type the <strong>Lot Number</strong>, then a <strong>space</strong>, then the <strong>Coil Number</strong>.
+                        </div>
                     </div>
                 </form>
             </div>
@@ -231,7 +234,7 @@ include 'header.php';
 </div>
 
 <script>
-    // Scanner Logic
+    // Scanner Logic (Existing)
     const qrInput = document.getElementById('qrInput');
     const scanForm = document.getElementById('scanForm');
 
@@ -244,7 +247,46 @@ include 'header.php';
         });
     }
 
-    // Smart Focus
+    // Refactored Manual Entry Parsing Logic
+    const manualBtn = document.getElementById('manualSubmitButton');
+    const combinedInput = document.getElementById('combined_input');
+    const feedback = document.getElementById('validationFeedback');
+
+    if(manualBtn){
+        manualBtn.addEventListener('click', function() {
+            const rawValue = combinedInput.value.trim();
+            
+            // 1. Use Regex /\s+/ to handle multiple spaces accidentally typed
+            const parts = rawValue.split(/\s+/);
+
+            // 2. Validation: Must have at least two distinct parts
+            if (parts.length >= 2) {
+                const lotNo = parts[0];
+                const coilNo = parts.slice(1).join(' '); // Re-join if Coil No contains spaces (like 'FK 1')
+
+                // Remove validation errors if any
+                combinedInput.classList.remove('is-invalid');
+                
+                // 3. Format into the system-recognized QR syntax
+                qrInput.value = `LOT=${lotNo};COIL=${coilNo}`;
+                
+                // 4. Submit via the existing scan handler
+                scanForm.submit();
+            } else {
+                // Show validation error
+                combinedInput.classList.add('is-invalid');
+                feedback.style.display = 'block';
+            }
+        });
+
+        // Clear error when user starts typing again
+        combinedInput.addEventListener('input', () => {
+            combinedInput.classList.remove('is-invalid');
+            feedback.style.display = 'none';
+        });
+    }
+
+    // Smart Focus (Existing)
     setInterval(() => {
         const el = document.activeElement;
         const modal = document.getElementById('manualEntryModal');
@@ -254,21 +296,6 @@ include 'header.php';
             if(qrInput) qrInput.focus();
         }
     }, 1000);
-
-    // Manual Entry Logic
-    const manualBtn = document.getElementById('manualSubmitButton');
-    if(manualBtn){
-        manualBtn.addEventListener('click', function() {
-            const lotNo = document.getElementById('manual_lot_no').value.trim();
-            const coilNo = document.getElementById('manual_coil_no').value.trim();
-            if (lotNo && coilNo) {
-                qrInput.value = `LOT=${lotNo};COIL=${coilNo}`;
-                scanForm.submit();
-            } else {
-                alert('Both fields are required.');
-            }
-        });
-    }
 </script>
 
 <?php include 'footer.php'; ?>
