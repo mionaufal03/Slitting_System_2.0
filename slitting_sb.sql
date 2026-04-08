@@ -1,8 +1,8 @@
-CREATE DATABASE  IF NOT EXISTS `slitting_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `slitting_db`;
+CREATE DATABASE  IF NOT EXISTS `slitting_db_test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+USE `slitting_db_test`;
 -- MySQL dump 10.13  Distrib 8.0.41, for Win64 (x86_64)
 --
--- Host: localhost    Database: slitting_db
+-- Host: localhost    Database: slitting_db_test
 -- ------------------------------------------------------
 -- Server version	9.2.0
 
@@ -90,7 +90,9 @@ CREATE TABLE `mother_coil_log` (
   `mother_id` int NOT NULL,
   `status` enum('IN','OUT') NOT NULL,
   `date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `fk_log_mother` (`mother_id`),
+  CONSTRAINT `fk_log_mother` FOREIGN KEY (`mother_id`) REFERENCES `mother_coil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -141,6 +143,7 @@ DROP TABLE IF EXISTS `raw_material_log`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `raw_material_log` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `mother_id` int DEFAULT NULL,
   `product` varchar(255) NOT NULL,
   `lot_no` varchar(100) NOT NULL,
   `coil_no` varchar(50) DEFAULT NULL,
@@ -152,7 +155,9 @@ CREATE TABLE `raw_material_log` (
   `date_in` datetime DEFAULT NULL,
   `date_out` datetime DEFAULT NULL,
   `remark` text,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `fk_log_to_mother` (`mother_id`),
+  CONSTRAINT `fk_log_to_mother` FOREIGN KEY (`mother_id`) REFERENCES `mother_coil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -257,7 +262,8 @@ CREATE TABLE `reslit_rolls` (
   `status` enum('pending','in_progress','completed') DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `parent_id` (`parent_id`)
+  KEY `parent_id` (`parent_id`),
+  CONSTRAINT `fk_reslit_parent` FOREIGN KEY (`parent_id`) REFERENCES `reslit_product` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -339,7 +345,11 @@ CREATE TABLE `slitting_product` (
   `recoiling_id` int DEFAULT NULL,
   `source` varchar(50) NOT NULL DEFAULT 'raw_material',
   PRIMARY KEY (`id`),
-  KEY `idx_recoiling_id` (`recoiling_id`)
+  KEY `idx_recoiling_id` (`recoiling_id`),
+  KEY `fk_slitting_mother` (`mother_id`),
+  KEY `fk_slitting_std_wgt` (`product`),
+  CONSTRAINT `fk_slitting_mother` FOREIGN KEY (`mother_id`) REFERENCES `mother_coil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_slitting_std_wgt` FOREIGN KEY (`product`) REFERENCES `std_wgt` (`product_code`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -454,7 +464,9 @@ CREATE TABLE `waiting_approval` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `approved_by` varchar(100) DEFAULT NULL,
   `approved_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `fk_approval_slitting` (`finish_id`),
+  CONSTRAINT `fk_approval_slitting` FOREIGN KEY (`finish_id`) REFERENCES `slitting_product` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -476,4 +488,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-04-03 16:12:15
+-- Dump completed on 2026-04-08  8:13:03
