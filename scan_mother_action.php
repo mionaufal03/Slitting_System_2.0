@@ -96,9 +96,11 @@ try {
         $stmt->close();
 
         // ✅ MODIFIED: Added 'grade' to the log insertion
-        $stmt = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, coil_no, grade, length, width, status, date_in, action, remark) VALUES (?, ?, ?, ?, ?, ?, 'IN', NOW(), 'IN', 'Scanned from mother coil')");
+        $stmt = $conn->prepare("INSERT INTO raw_material_log 
+            (mother_id, product, lot_no, coil_no, grade, length, width, status, date_in, action, remark) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN', NOW(), 'IN', 'Scanned from mother coil')");
         
-        $stmt->bind_param("ssssss",
+        $stmt->bind_param("issssdd",
+            $mother_id,
             $mother['product'],
             $mother['lot_no'],
             $mother['coil_no'],
