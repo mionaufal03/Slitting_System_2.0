@@ -26,8 +26,8 @@ $in = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log
                      ->fetch_assoc()['total'];
 
 $out = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
-                     WHERE status='OUT' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")
-                     ->fetch_assoc()['total'];
+                      WHERE status='OUT' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")
+                      ->fetch_assoc()['total'];
 
 $stock = max(0, (int)$in - (int)$out);
 
@@ -130,8 +130,8 @@ include 'header.php';
             <thead class="table-light">
                 <tr>
                     <th>Product</th>
-                    <th>Lot No.</th>
-                    <th>Coil No.</th>
+                    <th>Grade</th> 
+                    <th>Lot No / Coil No</th> 
                     <th>Length (mtr)</th>
                     <th>Width</th>
                     <th>Date In</th>
@@ -141,13 +141,14 @@ include 'header.php';
             </thead>
             <tbody>
                 <?php if($result && $result->num_rows > 0): ?>
-                    <?php while($row = $result->fetch_assoc()): ?>
+                    <?php while($row = $result->fetch_assoc()): 
+                        $combinedLotCoil = trim(($row['lot_no'] ?? '-') . ' ' . ($row['coil_no'] ?? ''));
+                    ?>
                     <tr>
                         <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product'] ?? '-') ?></span></td>
-                        <td><?= htmlspecialchars($row['lot_no'] ?? '-') ?></td>
-                        <td><?= htmlspecialchars($row['coil_no'] ?? '-') ?></td>
-                        <td class="fw-bold"><?= isset($row['length']) ? number_format($row['length']) : '-' ?></td>
-                        <td><?= isset($row['width']) ? number_format($row['width']) : '-' ?></td>
+                        <td><span class="fw-bold text-primary"><?= htmlspecialchars($row['grade'] ?? '-') ?></span></td> <td class="fw-medium"><?= htmlspecialchars($combinedLotCoil) ?></td>
+                        <td class="fw-bold"><?= isset($row['length']) ? number_format((float)$row['length']) : '-' ?></td>
+                        <td><?= isset($row['width']) ? number_format((float)$row['width']) : '-' ?></td>
                         <td class="small"><?= $row['date_in'] ?? '-' ?></td>
                         <td class="small"><?= $row['date_out'] ?? '-' ?></td>
                         <td><span class="badge bg-info text-dark"><?= $row['action'] ?? '-' ?></span></td>
@@ -161,7 +162,7 @@ include 'header.php';
     </div>
 </div>
 
-<div class="card shadow-sm border-0">
+<div class="card shadow-sm border-0 mb-5">
     <div class="card-header bg-success text-white fw-bold py-3">
         <i class="bi bi-scissors me-2"></i>Available Stock After Cut
     </div>
@@ -170,8 +171,7 @@ include 'header.php';
             <thead class="table-light">
                 <tr>
                     <th>Product</th>
-                    <th>Lot No.</th>
-                    <th>Coil No.</th>
+                    <th>Lot No / Coil No</th> 
                     <th>Length</th>
                     <th>Width</th>
                     <th>Actions</th>
@@ -181,13 +181,14 @@ include 'header.php';
                 <?php 
                 $resultCut = $conn->query("SELECT * FROM raw_material_log WHERE status='IN' AND action='cut_into_2' ORDER BY id ASC");
                 if($resultCut && $resultCut->num_rows > 0):
-                    while($rowCut = $resultCut->fetch_assoc()): ?>
+                    while($rowCut = $resultCut->fetch_assoc()): 
+                        $combinedLotCoilCut = trim(($rowCut['lot_no'] ?? '-') . ' ' . ($rowCut['coil_no'] ?? ''));
+                    ?>
                 <tr>
                     <td><strong><?= htmlspecialchars($rowCut['product']) ?></strong></td>
-                    <td><?= htmlspecialchars($rowCut['lot_no']) ?></td>
-                    <td><?= htmlspecialchars($rowCut['coil_no']) ?></td>
-                    <td class="text-success fw-bold"><?= number_format($rowCut['length']) ?> m</td>
-                    <td><?= number_format($rowCut['width']) ?> mm</td>
+                    <td><span class="badge outline-primary border text-primary"><?= htmlspecialchars($rowCut['grade'] ?? '-') ?></span></td> <td class="fw-medium"><?= htmlspecialchars($combinedLotCoilCut) ?></td>
+                    <td class="text-success fw-bold"><?= number_format((float)$rowCut['length']) ?> m</td>
+                    <td><?= number_format((float)$rowCut['width']) ?> mm</td>
                     <td>
                         <a href="add_slitting.php?stock_id=<?= $rowCut['id'] ?>" class="btn btn-primary btn-sm rounded-pill px-3">
                             USE <i class="bi bi-chevron-right small ms-1"></i>
@@ -196,7 +197,7 @@ include 'header.php';
                 </tr>
                 <?php endwhile; ?>
                 <?php else: ?>
-                    <tr><td colspan="6" class="py-4 text-muted">No leftover stock from "Cut Into 2" process.</td></tr>
+                    <tr><td colspan="5" class="py-4 text-muted">No leftover stock from "Cut Into 2" process.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -234,7 +235,7 @@ include 'header.php';
 </div>
 
 <script>
-    // Scanner Logic (Existing)
+    // Scanner Logic
     const qrInput = document.getElementById('qrInput');
     const scanForm = document.getElementById('scanForm');
 
@@ -247,7 +248,7 @@ include 'header.php';
         });
     }
 
-    // Refactored Manual Entry Parsing Logic
+    // Manual Entry Logic
     const manualBtn = document.getElementById('manualSubmitButton');
     const combinedInput = document.getElementById('combined_input');
     const feedback = document.getElementById('validationFeedback');
@@ -255,44 +256,33 @@ include 'header.php';
     if(manualBtn){
         manualBtn.addEventListener('click', function() {
             const rawValue = combinedInput.value.trim();
-            
-            // 1. Use Regex /\s+/ to handle multiple spaces accidentally typed
             const parts = rawValue.split(/\s+/);
 
-            // 2. Validation: Must have at least two distinct parts
             if (parts.length >= 2) {
                 const lotNo = parts[0];
-                const coilNo = parts.slice(1).join(' '); // Re-join if Coil No contains spaces (like 'FK 1')
+                const coilNo = parts.slice(1).join(' '); 
 
-                // Remove validation errors if any
                 combinedInput.classList.remove('is-invalid');
-                
-                // 3. Format into the system-recognized QR syntax
                 qrInput.value = `LOT=${lotNo};COIL=${coilNo}`;
-                
-                // 4. Submit via the existing scan handler
                 scanForm.submit();
             } else {
-                // Show validation error
                 combinedInput.classList.add('is-invalid');
                 feedback.style.display = 'block';
             }
         });
 
-        // Clear error when user starts typing again
         combinedInput.addEventListener('input', () => {
             combinedInput.classList.remove('is-invalid');
             feedback.style.display = 'none';
         });
     }
 
-    // Smart Focus (Existing)
     setInterval(() => {
         const el = document.activeElement;
         const modal = document.getElementById('manualEntryModal');
         const isModalOpen = modal ? modal.classList.contains('show') : false;
         
-        if (!isModalOpen && el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'BUTTON') {
+        if (!isModalOpen && !['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)) {
             if(qrInput) qrInput.focus();
         }
     }, 1000);

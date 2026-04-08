@@ -94,7 +94,7 @@ include 'header.php';
                     <th>SFC ID</th>
                     <th>Product</th>
                     <th>Lot & Coil</th>
-                    <th>Dimensions</th>
+                    <th>Width (mm)</th>
                     <th>Length (m)</th>
                     <th>Date Created</th>
                     <th>Action</th>
@@ -107,7 +107,7 @@ include 'header.php';
                             <td class="fw-bold text-muted">#<?= htmlspecialchars($row['sfc_id']) ?></td>
                             <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product']) ?></span></td>
                             <td class="small"><?= htmlspecialchars($row['lot_no']) ?> | <?= htmlspecialchars($row['coil_no']) ?></td>
-                            <td><?= number_format($row['width']) ?> mm</td>
+                            <td><?= number_format($row['width']) ?> </td>
                             <td class="text-primary fw-bold"><?= number_format($row['length'], 2) ?></td>
                             <td class="small text-muted"><?= date('d/M/Y', strtotime($row['date_created'])) ?></td>
                             <td>
