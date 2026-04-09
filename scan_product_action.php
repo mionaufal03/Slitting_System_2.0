@@ -147,7 +147,9 @@ if ($status === 'APPROVED') {
 }
 
 if ($status === 'DELIVERED') {
-    header("Location: $redirBase&scan=already_delivered&return_id=$id");
+    $lot_encoded = urlencode($lot);
+    $coil_encoded = urlencode($coil);
+    header("Location: $redirBase&scan=already_delivered&return_id=$id&lot=$lot_encoded&coil=$coil_encoded");
     exit;
 }
 

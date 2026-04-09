@@ -284,11 +284,27 @@ include 'header.php';
 </script>
 
 <?php if (isset($_GET['scan']) && $_GET['scan'] === 'already_delivered' && isset($_GET['return_id'])): ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        if (confirm("This coil is already delivered. Do you want to return it back to stock or proceed?")) {
-            window.location.href = "return_handler.php?id=<?= intval($_GET['return_id']) ?>";
-        }
+        const lotNo = "<?= htmlspecialchars($_GET['lot'] ?? '') ?>";
+        const coilNo = "<?= htmlspecialchars($_GET['coil'] ?? '') ?>";
+        const returnId = <?= intval($_GET['return_id']) ?>;
+
+        Swal.fire({
+            title: 'Item Already Delivered!',
+            text: `This coil (Lot: ${lotNo}, Coil: ${coilNo}) is already marked as Delivered. Would you like to return it to stock for re-inspection?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#198754', // Bootstrap success color
+            cancelButtonColor: '#dc3545', // Bootstrap danger color
+            confirmButtonText: 'Yes, Return to Stock',
+            cancelButtonText: 'No, Keep as Delivered'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = `return_handler.php?id=${returnId}`;
+            }
+        });
     });
 </script>
 <?php endif; ?>
