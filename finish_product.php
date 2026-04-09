@@ -283,5 +283,15 @@ include 'header.php';
     qIn.addEventListener('keydown', (e) => { if(e.key==='Enter' && qIn.value.trim()!=='') qFm.submit(); });
 </script>
 
+<?php if (isset($_GET['scan']) && $_GET['scan'] === 'already_delivered' && isset($_GET['return_id'])): ?>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if (confirm("This coil is already delivered. Do you want to return it back to stock or proceed?")) {
+            window.location.href = "return_handler.php?id=<?= intval($_GET['return_id']) ?>";
+        }
+    });
+</script>
+<?php endif; ?>
+
 <div><a href="index.php" class="btn btn-secondary mt-3">← Back</a></div>
 <?php include 'footer.php'; ?>

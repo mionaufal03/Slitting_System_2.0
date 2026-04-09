@@ -147,7 +147,7 @@ if ($status === 'APPROVED') {
 }
 
 if ($status === 'DELIVERED') {
-    header("Location: $redirBase&scan=already_delivered");
+    header("Location: $redirBase&scan=already_delivered&return_id=$id");
     exit;
 }
 
