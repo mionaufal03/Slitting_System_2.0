@@ -26,12 +26,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])){
         $stmt->execute();
         $stmt->close();
 
-        $stmt2 = $conn->prepare("UPDATE finish_product 
-            SET coil_no=?, product=?, lot_no=?, roll_no=?, width=?, length=? 
-            WHERE slit_id=?");
-        $stmt2->bind_param("ssssssi", $coil_no, $product, $lot_no, $roll_no, $width, $length, $id);
-        $stmt2->execute();
-        $stmt2->close();
+        //$stmt2 = $conn->prepare("UPDATE finish_product 
+          //  SET coil_no=?, product=?, lot_no=?, roll_no=?, width=?, length=? 
+          //  WHERE slit_id=?");
+       // $stmt2->bind_param("ssssssi", $coil_no, $product, $lot_no, $roll_no, $width, $length, $id);
+       // $stmt2->execute();
+    //    $stmt2->close();
 
         header("Location: slitting_product.php?success=update");
         exit;
@@ -42,7 +42,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])){
 if(isset($_GET['delete'])){
     $id = intval($_GET['delete']);
     $conn->query("DELETE FROM slitting_product WHERE id=$id");
-    $conn->query("DELETE FROM finish_product WHERE slit_id=$id");
+    //$conn->query("DELETE FROM finish_product WHERE slit_id=$id");
     header("Location: slitting_product.php?success=delete");
     exit;
 }
