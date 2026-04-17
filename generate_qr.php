@@ -1,20 +1,23 @@
 <?php
+// Prevent error messages from breaking the image stream
+error_reporting(E_ALL & ~E_DEPRECATED); 
+ini_set('display_errors', 0);
+
 require __DIR__ . '/vendor/autoload.php';
 include 'config.php';
 
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\Color\Color;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
 
 $type = $_GET['type'] ?? 'mother';
-
-$size   = 500;   // besar sikit
-$margin = 30;    // quiet zone besar
-
+$size = 300; // Optimal size for display
 $qrText = '';
 
+// --- LOGIC BLOCK ---
 if ($type === 'slitting') {
-
     $id = intval($_GET['id'] ?? 0);
     if ($id <= 0) die('Invalid ID');
 
@@ -25,35 +28,43 @@ if ($type === 'slitting') {
     $stmt->close();
 
     if (!$row) die('Slitting product not found');
-
-    // ✅ 1 line sahaja (paling senang scanner)
     $qrText = "LOT={$row['lot_no']};COIL={$row['coil_no']};ROLL={$row['roll_no']}";
 
 } else {
-
     $lot  = trim($_GET['lot'] ?? '');
     $coil = trim($_GET['coil'] ?? '');
-
+    
     if ($lot === '' || $coil === '') die('Invalid QR data');
 
-    // ✅ 1 line sahaja
-    $qrText = $_GET['product'] ?? '';
-    $qrText = $BASE_URL . "/mother_coil_ac" ;
-    
-
+    // Combine parameters so scanner can read all info
+    $qrText = "MOTHER;LOT:$lot;COIL:$coil";
 }
 
+// Ensure there is always text
+if (empty($qrText)) $qrText = "NO_DATA";
+
+// --- GENERATION BLOCK (New Syntax) ---
 $writer = new PngWriter();
 
-$qr = QrCode::create($qrText)
+// Create QR Code
+$qrCode = QrCode::create($qrText)
+    ->setEncoding(new Encoding('UTF-8'))
+    ->setErrorCorrectionLevel(ErrorCorrectionLevel::Low) // Fixed the Fatal Error here
     ->setSize($size)
-    ->setMargin(0)
+    ->setMargin(10)
     ->setForegroundColor(new Color(0, 0, 0))
-    ->setBackgroundColor(new Color(255, 255, 255,0));// alpha = 0 = transparent
+    ->setBackgroundColor(new Color(255, 255, 255));
 
-header('Content-Type: image/png');
-header('Cache-Control: no-cache, must-revalidate');
-header('Content-Disposition: inline; filename="qr.png"');
+try {
+    $result = $writer->write($qrCode);
 
-echo $writer->write($qr)->getString();
+    // Output Header
+    header('Content-Type: ' . $result->getMimeType());
+    header('Cache-Control: no-cache, must-revalidate');
+
+    // Stream image
+    echo $result->getString();
+} catch (Exception $e) {
+    die("Error generating QR code");
+}
 exit;
