@@ -33,11 +33,12 @@ if ($type === 'slitting') {
 } else {
     $lot  = trim($_GET['lot'] ?? '');
     $coil = trim($_GET['coil'] ?? '');
-    
+
     if ($lot === '' || $coil === '') die('Invalid QR data');
 
-    // Combine parameters so scanner can read all info
-    $qrText = "MOTHER;LOT:$lot;COIL:$coil";
+    // ✅ CHANGE THIS: Use the format your scan_mother_action.php expects
+    // This creates a string like "LOT=123;COIL=456" instead of a URL
+    $qrText = "LOT=$lot;COIL=$coil";
 }
 
 // Ensure there is always text

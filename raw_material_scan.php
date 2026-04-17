@@ -1,4 +1,4 @@
-<?php
+<?php /*
 include 'config.php';
 
 if(isset($_POST['qrcode'])){
@@ -52,6 +52,49 @@ if(isset($_POST['qrcode'])){
         }
     }else{
         $msg = "QR tidak sah!";
+    }
+
+    echo "<script>alert('$msg'); window.location='raw_material.php';</script>";
+}
+?> */
+
+
+<?php
+include 'config.php';
+
+if(isset($_POST['qrcode'])){
+    $qrcode = $_POST['qrcode'];
+    $data = explode("|", $qrcode);
+
+    $status = strtoupper($data[0] ?? ''); 
+    $code   = $data[1] ?? '';
+
+    if($status == "IN"){
+        $product   = $data[2] ?? '';
+        $lot_no    = $data[3] ?? '';
+        $nominal   = $data[4] ?? 0;
+        $effective = $data[5] ?? 0;
+        $length    = $data[6] ?? 0;
+
+        // Use Prepared Statements for security
+        $stmt = $conn->prepare("SELECT id FROM raw_material_log WHERE code=? AND status='IN'");
+        $stmt->bind_param("s", $code);
+        $stmt->execute();
+        $check = $stmt->get_result();
+
+        if($check->num_rows == 0){
+            $ins = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, code, nominal, effective, length, status, date_in) VALUES (?, ?, ?, ?, ?, ?, 'IN', NOW())");
+            $ins->bind_param("sssddd", $product, $lot_no, $code, $nominal, $effective, $length);
+            $ins->execute();
+            $msg = "Mother coil $code berjaya dimasukkan (IN).";
+        } else {
+            $msg = "Mother coil $code sudah ada dalam stok!";
+        }
+
+    } elseif($status == "OUT") {
+        // ... follow same pattern using prepared statements ...
+    } else {
+        $msg = "QR tidak sah! Format data salah.";
     }
 
     echo "<script>alert('$msg'); window.location='raw_material.php';</script>";
