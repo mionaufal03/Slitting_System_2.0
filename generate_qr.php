@@ -30,7 +30,7 @@ if ($type === 'slitting') {
     if (!$row) die('Slitting product not found');
     $qrText = "LOT={$row['lot_no']};COIL={$row['coil_no']};ROLL={$row['roll_no']}";
 
-} else {
+/*} else {
     $lot  = trim($_GET['lot'] ?? '');
     $coil = trim($_GET['coil'] ?? '');
 
@@ -39,6 +39,19 @@ if ($type === 'slitting') {
     // ✅ CHANGE THIS: Use the format your scan_mother_action.php expects
     // This creates a string like "LOT=123;COIL=456" instead of a URL
     $qrText = "LOT=$lot;COIL=$coil";
+} */
+
+} else {
+    $lot     = trim($_GET['lot'] ?? '');
+    $coil    = trim($_GET['coil'] ?? '');
+    $product = trim($_GET['product'] ?? '');
+    $nominal = trim($_GET['width'] ?? 0);   // Assuming nominal is width
+    $effective = trim($_GET['width'] ?? 0); // Assuming effective is width
+    $length  = trim($_GET['length'] ?? 0);
+
+    // Format: STATUS|CODE|PRODUCT|LOT|NOMINAL|EFFECTIVE|LENGTH
+    // We set status to IN so the scanner knows it's arriving in the warehouse
+    $qrText = "IN|$coil|$product|$lot|$nominal|$effective|$length";
 }
 
 // Ensure there is always text
