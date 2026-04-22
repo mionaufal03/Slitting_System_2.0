@@ -34,18 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// --- Handle Save Actual Length + OK (Sequential Entry Point) ---
+// --- Handle Save Actual Length + OK ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_ok') {
     $id = intval($_POST['id']);
     $actual_length = trim($_POST['actual_length']);
     
-    // Set stock_counted=1 and is_completed=1 to move it to the next state
     $stmt = $conn->prepare("UPDATE slitting_product SET actual_length=?, stock_counted=1, is_completed=1 WHERE id=?");
     $stmt->bind_param("si", $actual_length, $id);
     $stmt->execute();
     $stmt->close();
     
-    // Handle specific business logic for cut types
     $product = $conn->query("SELECT * FROM slitting_product WHERE id=$id")->fetch_assoc();
     if($product && $product['cut_type'] === 'cut_into_2' && $product['stock'] > 0) {
         $mother = $conn->query("SELECT * FROM mother_coil WHERE id={$product['mother_id']}")->fetch_assoc();
@@ -68,17 +66,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// --- Handle Send to Recoiling (Now an action FROM stock) ---
+// --- Handle Send to Recoiling ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_to_recoiling') {
     $id = intval($_POST['product_id']);
     $res = $conn->query("SELECT * FROM slitting_product WHERE id = $id");
     if ($res->num_rows > 0) {
         $p = $res->fetch_assoc();
-        
         $stmt = $conn->prepare("INSERT INTO recoiling_product (status, product, lot_no, coil_no, roll_no, width, length, actual_length) VALUES ('pending', ?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("ssssddd", $p['product'], $p['lot_no'], $p['coil_no'], $p['roll_no'], $p['width'], $p['length'], $p['actual_length']);
         if ($stmt->execute()) {
-            // Mark as recoiled so it disappears from this view logic
             $conn->query("UPDATE slitting_product SET is_recoiled=1 WHERE id=$id");
             header("Location: finish_product.php?success=recoiling");
             exit;
@@ -102,17 +98,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Fetch Summaries
-$in = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND is_completed=0 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
-$stock = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND stock_counted=1 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
-$waiting = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='WAITING' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")->fetch_assoc()['total'];
-$deliver = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year")->fetch_assoc()['total'];
-
 // Fetch Table Results
 $sql = "SELECT * FROM slitting_product WHERE (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL)
         AND ((status='IN' AND MONTH(date_in)=$month AND YEAR(date_in)=$year) OR (status IN ('WAITING','OUT','APPROVED') AND MONTH(date_out)=$month AND YEAR(date_out)=$year) OR (status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year))
         ORDER BY id ASC";
 $result = $conn->query($sql);
+
+// Fetch Summaries
+$in = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND is_completed=0 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
+$stock = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND stock_counted=1 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
+$waiting = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='WAITING' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")->fetch_assoc()['total'];
+$deliver = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year")->fetch_assoc()['total'];
 
 $editData = null;
 if(isset($_GET['edit'])){
@@ -131,7 +127,8 @@ include 'header.php';
     table { table-layout: fixed; width: 100%; }
     table th, table td { word-wrap: break-word; vertical-align: middle; font-size: 13px; }
     table td img { max-width: 60px; max-height: 60px; display: block; margin: 0 auto; }
-    table th:nth-child(1) { width: 45px; } table th:nth-child(2) { width: 100px; } table th:nth-child(3) { width: 80px; }
+    /* Column Widths */
+    table th:nth-child(1) { width: 45px; } table th:nth-child(2) { width: 100px; } table th:nth-child(3) { width: 90px; }
     table th:nth-child(4) { width: 90px; } table th:nth-child(5) { width: 110px; } table th:nth-child(6) { width: 70px; }
     table th:nth-child(7) { width: 60px; } table th:nth-child(8) { width: 60px; } table th:nth-child(9) { width: 70px; }
     table th:nth-child(10) { width: 90px; } table th:nth-child(11) { width: 90px; } table th:nth-child(12) { width: 70px; }
@@ -153,7 +150,7 @@ include 'header.php';
     </select>
     <label>Select Year:</label>
     <select name="year" onchange="this.form.submit()" class="form-select w-auto d-inline-block">
-        <?php for($y=2026; $y<=2030; $y++): ?>
+        <?php for($y=2024; $y<=2030; $y++): ?>
             <option value="<?= $y ?>" <?= ($y==$year)?'selected':'' ?>><?= $y ?></option>
         <?php endfor; ?>
     </select>
@@ -190,12 +187,21 @@ include 'header.php';
                 'OUT' => '<span class="badge bg-danger">OUT</span>', 'WAITING' => '<span class="badge bg-warning">WAITING</span>',
                 'DELIVERED' => '<span class="badge bg-success">DELIVERED</span>', default => '<span class="badge bg-secondary">'.$row['status'].'</span>'
             };
+
+            // LOGIK PENAMBAHBAIKAN SOURCE (FIX 0 ISSUE)
+            $sourceRaw = $row['source'] ?? '';
+            $sourceDisplay = match(trim(strtolower($sourceRaw))) {
+                'raw_material' => ['label' => 'RAW MAT', 'class' => 'bg-secondary'],
+                '0', '', 'sfg' => ['label' => 'SFG', 'class' => 'bg-dark'], // 0 ditukar ke SFG
+                default        => ['label' => strtoupper($sourceRaw), 'class' => 'bg-info']
+            };
+
             $lotCoil = trim($row['lot_no'] ?? '') . ' ' . trim($row['coil_no'] ?? '');
         ?>
             <tr class="<?= $rowClass ?>">
                 <td><?= $row['id'] ?></td>
                 <td><?= $statusBadge ?></td>
-                <td><?= htmlspecialchars($row['source'] ?? 'raw_material') ?></td>
+                <td><span class="badge <?= $sourceDisplay['class'] ?>"><?= $sourceDisplay['label'] ?></span></td>
                 <td><?= htmlspecialchars($row['product'] ?? '') ?></td>
                 <td><?= htmlspecialchars($lotCoil ?? '') ?></td>
                 <td><?= htmlspecialchars($row['roll_no'] ?? '') ?></td>
@@ -205,7 +211,7 @@ include 'header.php';
                 <td>
                     <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting approval</i></small>
                     <?php elseif($row['status'] == 'IN' && $row['is_completed'] == 0): ?>
-                        <a href="?edit=<?= $row['id'] ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
+                        <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
                     <?php elseif($row['status'] == 'IN' && $row['stock_counted'] == 1): ?>
                         <div class="d-flex flex-column gap-1">
                             <form method="post" onsubmit="return confirm('Send to reslit?')">
@@ -233,35 +239,27 @@ include 'header.php';
 <?php if($editData): ?>
 <div class="modal fade show" id="updateModal" style="display:block; background: rgba(0,0,0,0.5);" tabindex="-1">
     <div class="modal-dialog">
-        <form class="modal-content" method="post" id="updateForm">
+        <form class="modal-content" method="post">
             <input type="hidden" name="action" value="update_ok"><input type="hidden" name="id" value="<?= $editData['id'] ?>">
-            <div class="modal-header bg-primary text-white"><h5>Update Product</h5><a href="finish_product.php" class="btn-close"></a></div>
+            <div class="modal-header bg-primary text-white"><h5>Update Product</h5><a href="finish_product.php?month=<?= $month ?>&year=<?= $year ?>" class="btn-close"></a></div>
             <div class="modal-body">
                 <p><strong>Product:</strong> <?= htmlspecialchars($editData['product'] ?? '') ?> (<?= $editData['roll_no'] ?>)</p>
                 <div class="mb-3">
                     <label class="form-label">Actual Length (meter)</label>
-                    <input type="number" step="0.01" name="actual_length" id="actualLengthInput" class="form-control" value="<?= htmlspecialchars($editData['actual_length'] ?? '') ?>" required autofocus>
-                    <small id="lengthWarnText" class="text-danger" style="display:none;">⚠️ Length mismatch detected!</small>
+                    <input type="number" step="0.01" name="actual_length" id="actualLengthInput" class="form-control" required autofocus>
                 </div>
-                <div class="d-grid gap-2">
+                <div class="d-grid">
                     <button type="submit" class="btn btn-success" id="saveStockBtn" disabled>Save to Stock</button>
                 </div>
             </div>
-            <div class="modal-footer"><a href="finish_product.php" class="btn btn-danger">Cancel</a></div>
         </form>
     </div>
 </div>
 <script>
-    const EXPECTED = <?= floatval($editData['length']) ?> - 3;
-    const input = document.getElementById('actualLengthInput');
-    const saveBtn = document.getElementById('saveStockBtn');
-    
-    input.addEventListener('input', () => {
-        // State-Based Validation: Enable button only if length is filled
-        saveBtn.disabled = (input.value === "" || parseFloat(input.value) <= 0);
-        
-        const mismatch = Math.abs(parseFloat(input.value) - EXPECTED) > 0.5;
-        document.getElementById('lengthWarnText').style.display = mismatch ? 'block' : 'none';
+    const inputLength = document.getElementById('actualLengthInput');
+    const btnSave = document.getElementById('saveStockBtn');
+    inputLength.addEventListener('input', () => {
+        btnSave.disabled = (inputLength.value === "" || parseFloat(inputLength.value) <= 0);
     });
 </script>
 <?php endif; ?>
@@ -270,12 +268,13 @@ include 'header.php';
     <div class="modal-dialog"><div class="modal-content">
         <div class="modal-header"><h5>Manual Entry</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <form method="post" action="scan_product_action.php"><div class="modal-body">
-            <input type="text" class="form-control" name="qr" placeholder="LOT;COIL;ROLL" required autofocus>
+            <input type="text" class="form-control" name="qr" placeholder="LOT;COIL;ROLL" required>
         </div><div class="modal-footer"><button type="submit" class="btn btn-primary">Submit</button></div></form>
     </div></div>
 </div>
 
 <script>
+    // Scanner focus logic
     const qIn = document.getElementById('qrInputProduct');
     const qFm = document.getElementById('scanFormProduct');
     setInterval(() => {
@@ -283,32 +282,6 @@ include 'header.php';
     }, 800);
     qIn.addEventListener('keydown', (e) => { if(e.key==='Enter' && qIn.value.trim()!=='') qFm.submit(); });
 </script>
-
-<?php if (isset($_GET['scan']) && $_GET['scan'] === 'already_delivered' && isset($_GET['return_id'])): ?>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const lotNo = "<?= htmlspecialchars($_GET['lot'] ?? '') ?>";
-        const coilNo = "<?= htmlspecialchars($_GET['coil'] ?? '') ?>";
-        const returnId = <?= intval($_GET['return_id']) ?>;
-
-        Swal.fire({
-            title: 'Item Already Delivered!',
-            text: `This coil (Lot: ${lotNo}, Coil: ${coilNo}) is already marked as Delivered. Would you like to return it to stock for re-inspection?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#198754', // Bootstrap success color
-            cancelButtonColor: '#dc3545', // Bootstrap danger color
-            confirmButtonText: 'Yes, Return to Stock',
-            cancelButtonText: 'No, Keep as Delivered'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = `return_handler.php?id=${returnId}`;
-            }
-        });
-    });
-</script>
-<?php endif; ?>
 
 <div><a href="index.php" class="btn btn-secondary mt-3">← Back</a></div>
 <?php include 'footer.php'; ?>

@@ -121,7 +121,7 @@ include 'header.php';
     </div>
 </div>
 
-<div class="card shadow-sm border-0 mb-4">
+<div class="card shadow-sm border-0 mb-">
     <div class="card-header bg-dark text-white fw-bold py-3">
         <i class="bi bi-clock-history me-2"></i>Raw Material Log
     </div>
@@ -171,9 +171,9 @@ include 'header.php';
             <thead class="table-light">
                 <tr>
                     <th>Product</th>
-                    <th>Lot No / Coil No</th> 
-                    <th>Length</th>
-                    <th>Width</th>
+                    <th>Grade</th> <th>Lot No / Coil No</th> 
+                    <th>Length (mtr)</th>
+                    <th>Width (mm)</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -185,10 +185,16 @@ include 'header.php';
                         $combinedLotCoilCut = trim(($rowCut['lot_no'] ?? '-') . ' ' . ($rowCut['coil_no'] ?? ''));
                     ?>
                 <tr>
-                    <td><strong><?= htmlspecialchars($rowCut['product']) ?></strong></td>
-                    <td><span class="badge outline-primary border text-primary"><?= htmlspecialchars($rowCut['grade'] ?? '-') ?></span></td> <td class="fw-medium"><?= htmlspecialchars($combinedLotCoilCut) ?></td>
-                    <td class="text-success fw-bold"><?= number_format((float)$rowCut['length']) ?> m</td>
-                    <td><?= number_format((float)$rowCut['width']) ?> mm</td>
+                    <td><span class="badge bg-secondary"><?= htmlspecialchars($rowCut['product'] ?? '-') ?></span></td>
+                    
+                    <td><span class="fw-bold text-primary"><?= htmlspecialchars($rowCut['grade'] ?? '-') ?></span></td>
+                    
+                    <td class="fw-medium"><?= htmlspecialchars($combinedLotCoilCut) ?></td>
+                    
+                    <td class="text-success fw-bold"><?= number_format((float)$rowCut['length']) ?></td>
+                    
+                    <td><?= number_format((float)$rowCut['width']) ?></td>
+                    
                     <td>
                         <a href="add_slitting.php?stock_id=<?= $rowCut['id'] ?>" class="btn btn-primary btn-sm rounded-pill px-3">
                             USE <i class="bi bi-chevron-right small ms-1"></i>
@@ -197,7 +203,7 @@ include 'header.php';
                 </tr>
                 <?php endwhile; ?>
                 <?php else: ?>
-                    <tr><td colspan="5" class="py-4 text-muted">No leftover stock from "Cut Into 2" process.</td></tr>
+                    <tr><td colspan="6" class="py-4 text-muted">No leftover stock from "Cut Into 2" process.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
