@@ -230,7 +230,7 @@ include 'header.php';
       </div>
       <form method="post" action="recoiling_handler.php" id="recoilingForm">
         <input type="hidden" name="action" value="start_and_complete_recoiling">
-        <input type="hidden" name="recoiling_id" id="recoil_id">
+        <input type="hidden" name="id" id="recoil_id">
         <input type="hidden" name="source_table" id="recoil_source_table">
         <input type="hidden" name="source_log_id" id="recoil_source_log_id">
 
@@ -249,7 +249,7 @@ include 'header.php';
             <label class="form-label fw-bold">Step 1: Select Cut Type</label>
             <div class="d-flex gap-4">
                 <div class="form-check">
-                  <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()">
+                 <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()">
                   <label class="form-check-label" for="cutNormal">Cut defect at start/end</label>
                 </div>
                 <div class="form-check">
@@ -304,7 +304,7 @@ function showRecoilingModal(id, product, lot_no, coil_no, roll_no, width, length
     new bootstrap.Modal(document.getElementById('recoilingModal')).show();
 }
 
-function letterOptionsHTML(){
+function  letterOptionsHTML(){
     return `<option value="">-- None --</option><option value="a">a</option><option value="b">b</option><option value="c">c</option><option value="d">d</option>`;
 }
 
@@ -411,6 +411,15 @@ document.getElementById('recoilingForm').addEventListener('submit', function(e){
     if(!selected) { alert('Sila pilih Cut Type!'); return; }
     if(confirm('Complete recoiling, product will be added to finish product stock.')) this.submit();
 });
+
+// Check URL for success/error messages
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('success') && urlParams.get('success') === 'completed') {
+    // Standard JS alert or you can use a custom UI element
+    alert("✅ Recoiling Completed! The product has been moved to Finished Products.");
+} else if (urlParams.has('error')) {
+    alert("❌ Error: " + urlParams.get('msg'));
+}
 </script>
 
-<?php include 'footer.php'; ?>
+<?php include 'footer.php'; ?> 

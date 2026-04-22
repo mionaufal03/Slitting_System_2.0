@@ -135,24 +135,30 @@ if (
                 $all_remarks[] = $r;
             }
 
-            // ✅ Insert into slitting_product (finish product stock)
+            // 1. Determine if we have a valid mother_id. 
+            // If mother_id is 0 or empty, we set it to NULL so the database constraint passes.
+            $mother_id_val = (!empty($original['mother_id']) && $original['mother_id'] != 0) ? $original['mother_id'] : NULL;
+
+            // 2. Prepare the statement using ? for mother_id instead of hardcoded 0
             $insert_stmt = $conn->prepare("
                 INSERT INTO slitting_product
-                (recoiling_id, mother_id, product, lot_no, coil_no, roll_no, width, length, actual_length, status, is_completed, stock_counted)
-                VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, 'IN', 1, 1)
+                (recoiling_id, mother_id, product, lot_no, coil_no, roll_no, width, length, actual_length, status, is_completed, stock_counted, date_in)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'IN', 1, 1, NOW())
             ");
 
+            // 3. Update the bind_param string to "iissssddd" (added an 'i' for mother_id)
             $insert_stmt->bind_param(
-                "issssddd",
-                $id,                   // ✅ recoiling_product.id
+                "iissssddd",
+                $id,                // recoiling_product.id
+                $mother_id_val,     // ✅ The fixed Mother ID (allows NULL)
                 $original['product'],
-                $new_lot_no,           // ✅ lot_no ada letter
+                $new_lot_no,        
                 $original['coil_no'],
-                $new_roll_no,          // ✅ R1
+                $new_roll_no,       
                 $new_width,
                 $length,
                 $actual_length
-            );
+   );
 
             if (!$insert_stmt->execute()) {
                 throw new Exception("Insert failed ({$new_lot_no} {$new_roll_no}): " . $insert_stmt->error);
@@ -186,7 +192,7 @@ if (
                 new_width = ?,
                 new_length = ?,
                 remark = ?
-            WHERE id = ? AND status='pending'
+            WHERE id = ? AND (status='pending' OR status='sfc')
         ");
 
         $update_stmt->bind_param(
