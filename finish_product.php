@@ -74,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $res = $conn->query("SELECT * FROM slitting_product WHERE id = $id");
     if ($res->num_rows > 0) {
         $p = $res->fetch_assoc();
+        
         $stmt = $conn->prepare("INSERT INTO recoiling_product (status, product, lot_no, coil_no, roll_no, width, length, actual_length) VALUES ('pending', ?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("ssssddd", $p['product'], $p['lot_no'], $p['coil_no'], $p['roll_no'], $p['width'], $p['length'], $p['actual_length']);
         if ($stmt->execute()) {

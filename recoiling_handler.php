@@ -19,6 +19,8 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST'
     && isset($_POST['action'])
     && $_POST['action'] === 'start_and_complete_recoiling'
+
+    
 ) {
 
     error_log("Handler condition passed");

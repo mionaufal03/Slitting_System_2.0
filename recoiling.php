@@ -25,7 +25,7 @@ $result = $conn->query("
         roll_no,
         width,
         length,
-        actual_length,
+        IFNULL(actual_length, length) as actual_length,
         new_length,
         date_in,
         completed_at,
@@ -51,6 +51,7 @@ $result = $conn->query("
         remark,
         'raw_material_log' as source_table
     FROM raw_material_log
+
     WHERE status = 'IN' AND action = 'sfc')
 
     ORDER BY
@@ -176,7 +177,7 @@ include 'header.php';
                       <td><?= htmlspecialchars((($kids[0]['lot_no'] ?? $row['lot_no'] ?? '-') . ' ' . ($kids[0]['coil_no'] ?? $row['coil_no'] ?? ''))) ?></td>
                       <td><strong><?= htmlspecialchars($kids[0]['roll_no'] ?? ($row['roll_no'] ?? '-')) ?></strong></td>
                       <td><?= isset($row['width']) ? number_format((float)$row['width']) : '-' ?></td>
-                      <td><?= isset($row['actual_length']) ? number_format((float)$row['actual_length']) : '-' ?></td>
+                      <td><?= isset($row['length']) ? number_format((float)$row['actual_length']) : '-' ?></td>
                       <td>
                         <?php
                           $nl = isset($kids[0]['actual_length']) ? (float)$kids[0]['actual_length'] : (float)($row['new_length'] ?? 0);
@@ -282,14 +283,15 @@ let productData = {};
 
 function showRecoilingModal(id, product, lot_no, coil_no, roll_no, width, length, source_table) {
     productData = { id, product, lot_no, coil_no, roll_no, width: parseFloat(width), length: parseFloat(length), source_table };
-    document.getElementById('recoil_source_table').value = source_table;
-    if (source_table === 'raw_material_log') {
-        document.getElementById('recoil_source_log_id').value = id;
-        document.getElementById('recoil_id').value = '';
-    } else {
-        document.getElementById('recoil_id').value = id;
-        document.getElementById('recoil_source_log_id').value = '';
-    }
+    // Updated logic: Always fill recoil_id so the backend check ($id > 0) passes
+document.getElementById('recoil_id').value = id; 
+document.getElementById('recoil_source_table').value = source_table;
+
+if (source_table === 'raw_material_log') {
+    document.getElementById('recoil_source_log_id').value = id;
+} else {
+    document.getElementById('recoil_source_log_id').value = '';
+}
     document.getElementById('modal_product').textContent = product;
     document.getElementById('modal_lot').textContent = lot_no + ' ' + coil_no;
     document.getElementById('modal_roll').textContent = roll_no;
