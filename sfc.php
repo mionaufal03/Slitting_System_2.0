@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sfc_id']) && isset($_
         try {
             if ($action === 'RECOIL') {
                 $stmt = $conn->prepare("INSERT INTO recoiling_product (product, lot_no, coil_no, width, length, status, date_in) VALUES (?, ?, ?, ?, ?, 'pending', NOW())");
-               
                 $stmt->bind_param("sssdd", 
                         $sfc['product'],
                         $sfc['lot_no'], 
@@ -89,8 +88,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sfc_id']) && isset($_
     }
 }
 
-// 3. Fetch Data
-$result = $conn->query("SELECT * FROM sfc WHERE date_out IS NULL ORDER BY date_created DESC");
+// 3. Handle Search and Fetch Data
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+if ($search !== '') {
+    // Search by SFC ID, Product, Lot No, or Coil No
+    $query = "SELECT * FROM sfc WHERE date_out IS NULL AND (
+                sfc_id LIKE ? OR 
+                product LIKE ? OR 
+                lot_no LIKE ? OR 
+                coil_no LIKE ?
+              ) ORDER BY date_created DESC";
+    $stmt = $conn->prepare($query);
+    $likeSearch = "%$search%";
+    $stmt->bind_param("ssss", $likeSearch, $likeSearch, $likeSearch, $likeSearch);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query("SELECT * FROM sfc WHERE date_out IS NULL ORDER BY date_created DESC");
+}
 
 $page_title = "SFC Inventory";
 include 'header.php';
@@ -105,9 +121,26 @@ include 'header.php';
     <?php endif; ?>
 </div>
 
+<div class="row mb-3">
+    <div class="col-md-5">
+        <form method="GET" action="sfc.php" class="input-group shadow-sm">
+            <input type="text" name="search" class="form-control" placeholder="Search ID, Product, Lot, or Coil..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-search me-1"></i> Search
+            </button>
+            <?php if ($search !== ''): ?>
+                <a href="sfc.php" class="btn btn-outline-secondary">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
-    <div class="card-header bg-dark text-white fw-bold py-3">
-        <i class="bi bi-list-task me-2"></i>Available SFC Material
+    <div class="card-header bg-dark text-white fw-bold py-3 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-task me-2"></i>Available SFC Material</span>
+        <?php if($search !== ''): ?>
+            <span class="badge bg-info text-dark">Results for: "<?= htmlspecialchars($search) ?>"</span>
+        <?php endif; ?>
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle text-center mb-0">
@@ -137,14 +170,14 @@ include 'header.php';
                                         data-bs-toggle="modal" 
                                         data-bs-target="#actionModal"
                                         data-sfc-id="<?= $row['sfc_id'] ?>"
-                                        data-sfc-details="<?= $row['product'] ?> (<?= number_format($row['length'], 2) ?>m)">
+                                        data-sfc-details="<?= htmlspecialchars($row['product']) ?> (<?= number_format($row['length'], 2) ?>m)">
                                     Process SFC
                                 </button>
                             </td>
                         </tr>
                     <?php endwhile; ?>
                 <?php else: ?>
-                    <tr><td colspan="7" class="py-5 text-muted">No SFC inventory found.</td></tr>
+                    <tr><td colspan="7" class="py-5 text-muted">No SFC inventory found matching your criteria.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

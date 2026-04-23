@@ -16,6 +16,7 @@ include 'config.php';
 // Bulan & Tahun dipilih
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
 $year  = isset($_GET['year'])  ? (int)$_GET['year']  : (int)date('Y');
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 if ($month < 1 || $month > 12) { $month = (int)date('m'); }
 if ($year < 2000 || $year > 2100) { $year = (int)date('Y'); }
@@ -98,9 +99,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Build Search Condition
+$searchSql = "";
+if ($search !== '') {
+    $searchSql = " AND (product LIKE '%$search%' OR lot_no LIKE '%$search%' OR coil_no LIKE '%$search%' OR roll_no LIKE '%$search%' OR id LIKE '%$search%') ";
+}
+
 // Fetch Table Results
 $sql = "SELECT * FROM slitting_product WHERE (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL)
-        AND ((status='IN' AND MONTH(date_in)=$month AND YEAR(date_in)=$year) OR (status IN ('WAITING','OUT','APPROVED') AND MONTH(date_out)=$month AND YEAR(date_out)=$year) OR (status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year))
+        AND ((status='IN' AND MONTH(date_in)=$month AND YEAR(date_in)=$year) 
+             OR (status IN ('WAITING','OUT','APPROVED') AND MONTH(date_out)=$month AND YEAR(date_out)=$year) 
+             OR (status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year))
+        $searchSql
         ORDER BY id ASC";
 $result = $conn->query($sql);
 
@@ -141,20 +151,37 @@ include 'header.php';
     <input id="qrInputProduct" type="text" name="qr" style="position:fixed; left:-9999px; opacity:0;" autofocus>
 </form>
 
-<form method="get" class="mb-3 d-flex gap-2 align-items-center">
-    <label>Select Month:</label>
-    <select name="month" onchange="this.form.submit()" class="form-select w-auto d-inline-block">
-        <?php for($m=1;$m<=12;$m++): ?>
-            <option value="<?= $m ?>" <?= ($m==$month)?'selected':'' ?>><?= date("F", mktime(0,0,0,$m,1)) ?></option>
-        <?php endfor; ?>
-    </select>
-    <label>Select Year:</label>
-    <select name="year" onchange="this.form.submit()" class="form-select w-auto d-inline-block">
-        <?php for($y=2024; $y<=2030; $y++): ?>
-            <option value="<?= $y ?>" <?= ($y==$year)?'selected':'' ?>><?= $y ?></option>
-        <?php endfor; ?>
-    </select>
-</form>
+<div class="row mb-3 g-2 align-items-center">
+    <div class="col-auto">
+        <form method="get" class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
+            <label class="small fw-bold">Month:</label>
+            <select name="month" onchange="this.form.submit()" class="form-select form-select-sm w-auto">
+                <?php for($m=1;$m<=12;$m++): ?>
+                    <option value="<?= $m ?>" <?= ($m==$month)?'selected':'' ?>><?= date("F", mktime(0,0,0,$m,1)) ?></option>
+                <?php endfor; ?>
+            </select>
+            <label class="small fw-bold">Year:</label>
+            <select name="year" onchange="this.form.submit()" class="form-select form-select-sm w-auto">
+                <?php for($y=2024; $y<=2030; $y++): ?>
+                    <option value="<?= $y ?>" <?= ($y==$year)?'selected':'' ?>><?= $y ?></option>
+                <?php endfor; ?>
+            </select>
+        </form>
+    </div>
+
+    <div class="col-md-4">
+        <form method="get" class="input-group input-group-sm">
+            <input type="hidden" name="month" value="<?= $month ?>">
+            <input type="hidden" name="year" value="<?= $year ?>">
+            <input type="text" name="search" class="form-control" placeholder="Search ID, Product, Lot, Coil..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+            <?php if ($search !== ''): ?>
+                <a href="?month=<?= $month ?>&year=<?= $year ?>" class="btn btn-outline-secondary">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
 
 <div class="mb-3 d-flex gap-2">
     <a href="?month=<?= $month ?>&year=<?= $year ?>&download=excel" class="btn btn-success btn-sm">Download Excel</a>
@@ -188,11 +215,10 @@ include 'header.php';
                 'DELIVERED' => '<span class="badge bg-success">DELIVERED</span>', default => '<span class="badge bg-secondary">'.$row['status'].'</span>'
             };
 
-            // LOGIK PENAMBAHBAIKAN SOURCE (FIX 0 ISSUE)
             $sourceRaw = $row['source'] ?? '';
             $sourceDisplay = match(trim(strtolower($sourceRaw))) {
                 'raw_material' => ['label' => 'RAW MAT', 'class' => 'bg-secondary'],
-                '0', '', 'sfg' => ['label' => 'SFG', 'class' => 'bg-dark'], // 0 ditukar ke SFG
+                '0', '', 'sfg' => ['label' => 'SFG', 'class' => 'bg-dark'],
                 default        => ['label' => strtoupper($sourceRaw), 'class' => 'bg-info']
             };
 
@@ -211,7 +237,7 @@ include 'header.php';
                 <td>
                     <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting approval</i></small>
                     <?php elseif($row['status'] == 'IN' && $row['is_completed'] == 0): ?>
-                        <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
+                        <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>&search=<?= urlencode($search) ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
                     <?php elseif($row['status'] == 'IN' && $row['stock_counted'] == 1): ?>
                         <div class="d-flex flex-column gap-1">
                             <form method="post" onsubmit="return confirm('Send to reslit?')">
@@ -230,7 +256,7 @@ include 'header.php';
                 </td>
             </tr>
         <?php endwhile; else: ?>
-            <tr><td colspan="13">No data found.</td></tr>
+            <tr><td colspan="13" class="py-4 text-muted">No products found matching "<?= htmlspecialchars($search) ?>"</td></tr>
         <?php endif; ?>
         </tbody>
     </table>
@@ -241,7 +267,7 @@ include 'header.php';
     <div class="modal-dialog">
         <form class="modal-content" method="post">
             <input type="hidden" name="action" value="update_ok"><input type="hidden" name="id" value="<?= $editData['id'] ?>">
-            <div class="modal-header bg-primary text-white"><h5>Update Product</h5><a href="finish_product.php?month=<?= $month ?>&year=<?= $year ?>" class="btn-close"></a></div>
+            <div class="modal-header bg-primary text-white"><h5>Update Product</h5><a href="finish_product.php?month=<?= $month ?>&year=<?= $year ?>&search=<?= urlencode($search) ?>" class="btn-close"></a></div>
             <div class="modal-body">
                 <p><strong>Product:</strong> <?= htmlspecialchars($editData['product'] ?? '') ?> (<?= $editData['roll_no'] ?>)</p>
                 <div class="mb-3">

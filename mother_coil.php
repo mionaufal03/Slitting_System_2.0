@@ -51,10 +51,10 @@ if (!in_array($_SESSION['role'], ['slitting','mkl3'], true)) {
 
 $success = $_GET['success'] ?? null;
 
+// --- POST ACTIONS (ADD/UPDATE) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    // slitting can only add
     if ($_SESSION['role'] === 'slitting' && $action !== 'add') {
         die("Admin view-only. Not allowed to modify.");
     }
@@ -75,10 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($lot_no === '' || $coil_no === '' || $grade === '' || $width === '' || $length === '') {
         die("Field missing");
     }
-
-   /* if ($product === '') {
-        die("Coil not found / product empty");
-    } */
 
     if ($action === 'add') {
         $stmt = $conn->prepare("
@@ -112,23 +108,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$result = $conn->query("SELECT * FROM mother_coil ORDER BY id ASC");
+// --- SEARCH LOGIC ---
+$search = trim($_GET['search'] ?? '');
+if ($search !== '') {
+    $searchTerm = "%$search%";
+    $stmt = $conn->prepare("SELECT * FROM mother_coil 
+                            WHERE coil_no LIKE ? 
+                            OR lot_no LIKE ? 
+                            OR product LIKE ? 
+                            ORDER BY id ASC");
+    $stmt->bind_param("sss", $searchTerm, $searchTerm, $searchTerm);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query("SELECT * FROM mother_coil ORDER BY id ASC");
+}
 
 $page_title = 'Mother Coil';
 include 'header.php';
 ?>
+
 <h2 class="mb-4"><i class="bi bi-layer-forward me-2"></i>Mother Coil List</h2>
 
-    <div class="mb-3">
+<div class="row mb-3">
+    <div class="col-md-6">
         <?php if (in_array($_SESSION['role'], ['mkl3', 'slitting'], true)): ?>
             <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addMotherModal">
-                Add Mother Coil
+                <i class="bi bi-plus"></i> Add Mother Coil
             </button>
         <?php endif; ?>
     </div>
+    
+    <div class="col-md-6">
+        <form method="GET" action="mother_coil.php" class="input-group input-group-sm">
+            <input type="text" name="search" class="form-control" placeholder="Search Coil No, Lot, or Product..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+            <?php if ($search !== ''): ?>
+                <a href="mother_coil.php" class="btn btn-outline-secondary">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
 
-    <table class="table table-bordered table-striped align-middle text-center">
-        <thead class="table-dark">
+<table class="table table-bordered table-striped align-middle text-center">
+    <thead class="table-dark">
         <tr>
             <th>ID</th>
             <th>Product</th>
@@ -141,105 +164,85 @@ include 'header.php';
             <th>QR Code</th>
             <th>Action</th>
         </tr>
-        </thead>
-        <tbody>
-        <?php while ($row = $result->fetch_assoc()): $id = (int)$row['id']; ?>
+    </thead>
+    <tbody>
+        <?php if ($result && $result->num_rows > 0): ?>
+            <?php while ($row = $result->fetch_assoc()): $id = (int)$row['id']; ?>
+                <tr>
+                    <td><?= $id ?></td>
+                    <td><?= htmlspecialchars($row['product'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['lot_no'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['coil_no'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['grade'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['width'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['length'] ?? '', ENT_QUOTES) ?></td>
+                    <td><?= htmlspecialchars($row['date_created'] ?? '', ENT_QUOTES) ?></td>
+                    <td>
+                        <img src="generate_qr.php?product=<?= urlencode($row['product'] ?? '') ?>&lot=<?= urlencode($row['lot_no'] ?? '') ?>&coil=<?= urlencode($row['coil_no'] ?? '') ?>&width=<?= urlencode($row['width'] ?? '') ?>&length=<?= urlencode($row['length'] ?? '') ?>&type=mother" width="70" alt="QR">
+                    </td>
+                    <td>
+                    <?php if ($_SESSION['role'] === 'mkl3'): ?>
+                        <button type="button" class="btn btn-warning btn-sm me-1 editBtn"
+                            data-id="<?= $id ?>"
+                            data-product="<?= htmlspecialchars($row['product'] ?? '', ENT_QUOTES) ?>"
+                            data-lot_no="<?= htmlspecialchars($row['lot_no'] ?? '', ENT_QUOTES) ?>"
+                            data-coil_no="<?= htmlspecialchars($row['coil_no'] ?? '', ENT_QUOTES) ?>"
+                            data-grade="<?= htmlspecialchars($row['grade'] ?? '', ENT_QUOTES) ?>"
+                            data-width="<?= htmlspecialchars($row['width'] ?? '', ENT_QUOTES) ?>"
+                            data-length="<?= htmlspecialchars($row['length'] ?? '', ENT_QUOTES) ?>"
+                            data-bs-toggle="modal" data-bs-target="#editMotherModal">Edit</button>
+
+                        <a href="delete_mother.php?id=<?= $id ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</a>
+                        <a href="print_mother.php?id=<?= $id ?>" class="btn btn-info btn-sm" target="_blank">Print</a>
+                    <?php else: ?>
+                        <span class="text-muted">View only</span>
+                    <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endwhile; ?>
+        <?php else: ?>
             <tr>
-                <td><?= (int)$row['id'] ?></td>
-                <td><?= htmlspecialchars($row['product'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['lot_no'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['coil_no'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['grade'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['width'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['length'] ?? '', ENT_QUOTES) ?></td>
-                <td><?= htmlspecialchars($row['date_created'] ?? '', ENT_QUOTES) ?></td>
-                <td>
-                    <img
-                      src="generate_qr.php?product=<?= urlencode($row['product'] ?? '') ?>&lot=<?= urlencode($row['lot_no'] ?? '') ?>&coil=<?= urlencode($row['coil_no'] ?? '') ?>&width=<?= urlencode($row['width'] ?? '') ?>&length=<?= urlencode($row['length'] ?? '') ?>&type=mother"
-                      width="70"
-                      alt="QR"
-                    >
-                </td>
-                <td>
-                <?php if ($_SESSION['role'] === 'mkl3'): ?>
-                    <button
-                        type="button"
-                        class="btn btn-warning btn-sm me-1 editBtn"
-                        data-id="<?= (int)$row['id'] ?>"
-                        data-product="<?= htmlspecialchars($row['product'] ?? '', ENT_QUOTES) ?>"
-                        data-lot_no="<?= htmlspecialchars($row['lot_no'] ?? '', ENT_QUOTES) ?>"
-                        data-coil_no="<?= htmlspecialchars($row['coil_no'] ?? '', ENT_QUOTES) ?>"
-                        data-grade="<?= htmlspecialchars($row['grade'] ?? '', ENT_QUOTES) ?>"
-                        data-width="<?= htmlspecialchars($row['width'] ?? '', ENT_QUOTES) ?>"
-                        data-length="<?= htmlspecialchars($row['length'] ?? '', ENT_QUOTES) ?>"
-                        data-bs-toggle="modal" data-bs-target="#editMotherModal"
-                    >Edit</button>
-
-                    <a href="delete_mother.php?id=<?= $id ?>"
-                       class="btn btn-danger btn-sm"
-                       onclick="return confirm('Are you sure?')">Delete</a>
-
-                    <a href="print_mother.php?id=<?= $id ?>"
-                       class="btn btn-info btn-sm"
-                       target="_blank">Print</a>
-                <?php else: ?>
-                    <span class="text-muted">View only</span>
-                <?php endif; ?>
-                </td>
+                <td colspan="10" class="text-center py-4 text-muted">No records found.</td>
             </tr>
-        <?php endwhile; ?>
-        </tbody>
-    </table>
+        <?php endif; ?>
+    </tbody>
+</table>
 
-
-<!--Modal Add-->
 <div class="modal fade" id="addMotherModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post" action="mother_coil.php">
         <input type="hidden" name="action" value="add">
-
         <div class="modal-header">
           <h5 class="modal-title">Add Mother Coil</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-
         <div class="modal-body">
           <div class="mb-3">
-            <label class="form-label">Product (ignore this field)</label>
+            <label class="form-label">Product (Auto-lookup)</label>
             <input type="text" id="add_product_display" class="form-control" readonly>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Lot No</label>
-            <input type="text" name="lot_no" id="add_lot_no"
-                   class="form-control" required maxlength="6"
-                   pattern="^[A-Z0-9]{6}$"
-                   title="Lot No must be exactly 6 characters, uppercase letters (A-Z) and numbers only"
-                   disabled>
+            <input type="text" name="lot_no" id="add_lot_no" class="form-control" required maxlength="6" pattern="^[A-Z0-9]{6}$" title="Lot No must be 6 characters (A-Z, 0-9)">
           </div>
-
           <div class="mb-3">
             <label class="form-label">Coil No</label>
             <input type="text" name="coil_no" id="add_coil_no" class="form-control" required disabled>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Grade</label>
             <input type="text" name="grade" id="add_grade" class="form-control" required disabled>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Width</label>
             <input type="number" step="0.01" name="width" id="add_width" class="form-control" required disabled>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Length (mtr)</label>
             <input type="number" step="0.01" name="length" id="add_length" class="form-control" required disabled>
           </div>
         </div>
-
         <div class="modal-footer">
           <button type="submit" class="btn btn-success">Save</button>
           <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancel</button>
@@ -249,20 +252,16 @@ include 'header.php';
   </div>
 </div>
 
-
-<!-- Modal Edit -->
 <div class="modal fade" id="editMotherModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post" action="mother_coil.php">
         <input type="hidden" name="action" value="update">
         <input type="hidden" name="id" id="edit_id">
-
         <div class="modal-header">
           <h5 class="modal-title">Edit Mother Coil</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label">Product</label>
@@ -276,36 +275,27 @@ include 'header.php';
               ?>
             </select>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Lot No</label>
-            <input type="text" name="lot_no" id="edit_lot_no"
-                   class="form-control" required maxlength="6"
-                   pattern="^[A-Z0-9]{6}$"
-                   title="Lot No must be exactly 6 characters, uppercase letters (A-Z) and numbers only">
+            <input type="text" name="lot_no" id="edit_lot_no" class="form-control" required maxlength="6" pattern="^[A-Z0-9]{6}$">
           </div>
-
           <div class="mb-3">
             <label class="form-label">Coil No</label>
             <input type="text" name="coil_no" id="edit_coil_no" class="form-control" required>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Grade</label>
             <input type="text" name="grade" id="edit_grade" class="form-control" required>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Width</label>
             <input type="number" step="0.01" name="width" id="edit_width" class="form-control" required>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Length (mtr)</label>
             <input type="number" step="0.01" name="length" id="edit_length" class="form-control" required>
           </div>
         </div>
-
         <div class="modal-footer">
           <button type="submit" class="btn btn-success">Update</button>
           <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancel</button>
@@ -321,7 +311,7 @@ function validateLotNo(input){
   input.value = input.value.toUpperCase();
   const regex = /^[A-Z0-9]{6}$/;
   if(input.value !== '' && !regex.test(input.value)){
-    input.setCustomValidity('Lot No must be exactly 6 characters, only uppercase letters (A-Z) and numbers allowed. Example: ABC123');
+    input.setCustomValidity('Lot No must be exactly 6 characters (A-Z, 0-9).');
   } else {
     input.setCustomValidity('');
   }
@@ -336,11 +326,10 @@ function enableNextField(currentId, nextId){
     const ok = this.value.trim() !== '';
     if(ok){
       next.disabled = false;
-      return;
+    } else {
+      next.disabled = true;
+      next.value = '';
     }
-    if(document.activeElement === next) return;
-    next.disabled = true;
-    next.value = '';
   });
 }
 
@@ -355,17 +344,10 @@ function setAddProduct(product) {
 }
 
 document.getElementById('addMotherModal').addEventListener('shown.bs.modal', function () {
-  document.getElementById('add_lot_no').disabled = false;
-  document.getElementById('add_lot_no').focus();
-
+  const lotInput = document.getElementById('add_lot_no');
+  lotInput.disabled = false;
+  lotInput.focus();
   setAddProduct('');
-  ['add_coil_no','add_grade','add_width','add_length'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el){
-      el.value = '';
-      el.disabled = true;
-    }
-  });
 });
 
 const addCoil = document.getElementById('add_coil_no');
@@ -376,20 +358,17 @@ if (addCoil) {
       setAddProduct('');
       return;
     }
-
     try {
       const res = await fetch('mother_coil.php?ajax=get_product&coil=' + encodeURIComponent(coilValue));
       const data = await res.json();
-
       if (data.ok && data.product) {
         setAddProduct(data.product);
       } else {
         setAddProduct('');
-        alert('Coil code not found in coil_product_map!');
+        alert('Coil code not found in mapping table!');
       }
     } catch (e) {
       console.error(e);
-      alert('Error calling AJAX product lookup.');
     }
   });
 }
@@ -399,7 +378,6 @@ const editLot = document.getElementById('edit_lot_no');
 if(addLot) addLot.addEventListener('input', function(){ validateLotNo(this); });
 if(editLot) editLot.addEventListener('input', function(){ validateLotNo(this); });
 
-// Fill Edit Modal
 document.querySelectorAll('.editBtn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('edit_id').value       = btn.dataset.id;
@@ -409,8 +387,6 @@ document.querySelectorAll('.editBtn').forEach(btn => {
     document.getElementById('edit_grade').value    = btn.dataset.grade || '';
     document.getElementById('edit_width').value    = btn.dataset.width || '';
     document.getElementById('edit_length').value   = btn.dataset.length || '';
-
-    setTimeout(()=> document.getElementById('edit_lot_no').focus(), 150);
   });
 });
 </script>

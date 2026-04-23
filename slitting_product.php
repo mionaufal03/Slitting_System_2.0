@@ -34,14 +34,34 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])){
 // === Delete Product ===
 if(isset($_GET['delete'])){
     $id = intval($_GET['delete']);
-    $conn->query("DELETE FROM slitting_product WHERE id=$id");
-    //$conn->query("DELETE FROM finish_product WHERE slit_id=$id");
+    // Using prepared statement for security
+    $stmt = $conn->prepare("DELETE FROM slitting_product WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->close();
     header("Location: slitting_product.php?success=delete");
     exit;
 }
 
-// === Fetch All Products ===
-$slitting = $conn->query("SELECT * FROM slitting_product ORDER BY id ASC");
+// === Handle Search Logic ===
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+if ($search !== '') {
+    $query = "SELECT * FROM slitting_product WHERE 
+                coil_no LIKE ? OR 
+                product LIKE ? OR 
+                lot_no LIKE ? OR
+                roll_no LIKE ?
+              ORDER BY id DESC";
+    $stmt = $conn->prepare($query);
+    $likeSearch = "%$search%";
+    $stmt->bind_param("ssss", $likeSearch, $likeSearch, $likeSearch, $likeSearch);
+    $stmt->execute();
+    $slitting = $stmt->get_result();
+} else {
+    $slitting = $conn->query("SELECT * FROM slitting_product ORDER BY id DESC");
+}
+
 $success = $_GET['success'] ?? null;
 
 // === Fetch Single Product for Edit ===
@@ -57,92 +77,119 @@ $page_title = 'Slitting Product';
 include 'header.php';
 ?>
 
-<h2><i class="bi bi-scissors me-2"></i>Slitting Product</h2>
-
-<?php if($success === 'update'): ?>
-    <div class="alert alert-success">Product updated successfully!</div>
-<?php elseif($success === 'delete'): ?>
-    <div class="alert alert-success">Product deleted successfully!</div>
-<?php endif; ?>
-
-<table class="table table-bordered table-striped align-middle text-center">
-    <thead class="table-dark">
-        <tr>
-            <th>ID</th>
-            <th>Coil No</th>
-            <th>Product</th>
-            <th>Lot No</th>
-            <th>Roll No</th>
-            <th>Width</th>
-            <th>Length</th>
-            <th>QR Code</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-    <?php if($slitting->num_rows>0): while($row=$slitting->fetch_assoc()): ?>
-        <tr>
-            <td><?= $row['id'] ?></td>
-            <td><?= htmlspecialchars($row['coil_no'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['product'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['lot_no'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['roll_no'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['width'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['length'] ?? '') ?></td>
-            <td>
-                <img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" width="80" alt="QR Code">
-            </td>
-            <td>
-                <a href="?edit=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
-                <a href="?delete=<?= $row['id'] ?>" onclick="return confirm('Delete this product?')" class="btn btn-danger btn-sm">Delete</a>
-                <a href="select_customer.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
-            </td>
-        </tr>
-    <?php endwhile; else: ?>
-        <tr><td colspan="9">No data found.</td></tr>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-scissors me-2 text-primary"></i>Slitting Product Inventory</h2>
+    <?php if($success === 'update'): ?>
+        <div class="alert alert-success py-2 mb-0 shadow-sm"><i class="bi bi-check-circle me-2"></i>Product updated!</div>
+    <?php elseif($success === 'delete'): ?>
+        <div class="alert alert-success py-2 mb-0 shadow-sm"><i class="bi bi-trash me-2"></i>Product deleted!</div>
     <?php endif; ?>
-    </tbody>
-</table>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-5">
+        <form method="GET" action="slitting_product.php" class="input-group shadow-sm">
+            <input type="text" name="search" class="form-control" placeholder="Search Coil, Product, Lot..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-search me-1"></i> Search
+            </button>
+            <?php if ($search !== ''): ?>
+                <a href="slitting_product.php" class="btn btn-outline-secondary">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-dark text-white fw-bold py-3 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-task me-2"></i>Slitting Records</span>
+        <?php if($search !== ''): ?>
+            <span class="badge bg-info text-dark">Results for: "<?= htmlspecialchars($search) ?>"</span>
+        <?php endif; ?>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle text-center mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Coil No</th>
+                    <th>Product</th>
+                    <th>Lot & Roll</th>
+                    <th>Width (mm)</th>
+                    <th>Length (m)</th>
+                    <th>QR Code</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php if($slitting->num_rows > 0): while($row = $slitting->fetch_assoc()): ?>
+                <tr>
+                    <td class="text-muted fw-bold">#<?= $row['id'] ?></td>
+                    <td><span class="fw-bold"><?= htmlspecialchars($row['coil_no'] ?? '') ?></span></td>
+                    <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product'] ?? '') ?></span></td>
+                    <td class="small"><?= htmlspecialchars($row['lot_no'] ?? '') ?> | <?= htmlspecialchars($row['roll_no'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($row['width'] ?? '') ?></td>
+                    <td class="text-primary fw-bold"><?= htmlspecialchars($row['length'] ?? '') ?></td>
+                    <td>
+                        <img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" width="60" class="img-thumbnail" alt="QR">
+                    </td>
+                    <td>
+                        <div class="btn-group shadow-sm">
+                            <a href="?edit=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
+                            <a href="select_customer.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
+                            <a href="?delete=<?= $row['id'] ?>" onclick="return confirm('Delete this product?')" class="btn btn-danger btn-sm">Delete</a>
+                        </div>
+                    </td>
+                </tr>
+            <?php endwhile; else: ?>
+                <tr><td colspan="8" class="py-5 text-muted">No products found matching your criteria.</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <?php if($editData): ?>
 <div class="modal fade show" id="editSlittingModal" style="display:block;" tabindex="-1">
-  <div class="modal-dialog">
-    <form class="modal-content" method="post">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content border-0 shadow" method="post">
       <input type="hidden" name="action" value="update">
       <input type="hidden" name="id" value="<?= $editData['id'] ?>">
-      <div class="modal-header">
-        <h5 class="modal-title">Edit Slitting Product</h5>
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Slitting Product</h5>
         <a href="slitting_product.php" class="btn-close"></a>
       </div>
-      <div class="modal-body">
-          <div class="mb-3">
-              <label class="form-label">Coil No</label>
-              <input type="text" name="coil_no" class="form-control" value="<?= htmlspecialchars($editData['coil_no'] ?? '') ?>" required>
-          </div>
-          <div class="mb-3">
-              <label class="form-label">Product</label>
-              <input type="text" name="product" class="form-control" value="<?= htmlspecialchars($editData['product'] ?? '') ?>" required>
-          </div>
-          <div class="mb-3">
-              <label class="form-label">Lot No</label>
-              <input type="text" name="lot_no" class="form-control" value="<?= htmlspecialchars($editData['lot_no'] ?? '') ?>" required>
-          </div>
-          <div class="mb-3">
-              <label class="form-label">Roll No</label>
-              <input type="text" name="roll_no" class="form-control" value="<?= htmlspecialchars($editData['roll_no'] ?? '') ?>" required>
-          </div>
-          <div class="mb-3">
-              <label class="form-label">Width</label>
-              <input type="text" name="width" class="form-control" value="<?= htmlspecialchars($editData['width'] ?? '') ?>" required>
-          </div>
-          <div class="mb-3">
-              <label class="form-label">Length</label>
-              <input type="text" name="length" class="form-control" value="<?= htmlspecialchars($editData['length'] ?? '') ?>" required>
+      <div class="modal-body p-4">
+          <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Coil No</label>
+                  <input type="text" name="coil_no" class="form-control" value="<?= htmlspecialchars($editData['coil_no'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Product</label>
+                  <input type="text" name="product" class="form-control" value="<?= htmlspecialchars($editData['product'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Lot No</label>
+                  <input type="text" name="lot_no" class="form-control" value="<?= htmlspecialchars($editData['lot_no'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Roll No</label>
+                  <input type="text" name="roll_no" class="form-control" value="<?= htmlspecialchars($editData['roll_no'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Width</label>
+                  <input type="text" name="width" class="form-control" value="<?= htmlspecialchars($editData['width'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Length</label>
+                  <input type="text" name="length" class="form-control" value="<?= htmlspecialchars($editData['length'] ?? '') ?>" required>
+              </div>
           </div>
       </div>
-      <div class="modal-footer">
-        <button type="submit" class="btn btn-success">Update</button>
-        <a href="slitting_product.php" class="btn btn-danger">Cancel</a>
+      <div class="modal-footer bg-light">
+        <button type="submit" class="btn btn-success px-4">Update Product</button>
+        <a href="slitting_product.php" class="btn btn-outline-danger">Cancel</a>
       </div>
     </form>
   </div>
@@ -150,6 +197,6 @@ include 'header.php';
 <div class="modal-backdrop fade show"></div>
 <?php endif; ?>
 
-<div><a href="index.php" class="btn btn-secondary mt-3">← Back</a></div>
+<div class="mt-4"><a href="index.php" class="btn btn-secondary shadow-sm">← Back to Dashboard</a></div>
 
 <?php include 'footer.php'; ?>
