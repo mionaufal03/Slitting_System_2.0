@@ -1,102 +1,258 @@
-<?php /*
-include 'config.php';
-
-if(isset($_POST['qrcode'])){
-    $qrcode = $_POST['qrcode'];
-    $data = explode("|", $qrcode);
-
-    $status = strtoupper($data[0]); // IN / OUT
-    $code   = $data[1] ?? '';
-
-    if($status == "IN"){
-        $product   = $data[2] ?? '';
-        $lot_no    = $data[3] ?? '';
-        $nominal   = $data[4] ?? 0;
-        $effective = $data[5] ?? 0;
-        $length    = $data[6] ?? 0;
-
-        // Insert record baru ke Raw Material (status IN)
-        $check = $conn->query("SELECT * FROM raw_material_log WHERE code='$code' AND status='IN'");
-        if($check->num_rows == 0){
-            $conn->query("INSERT INTO raw_material_log
-                         (product, lot_no, code, nominal, effective, length, status, date_in) 
-                         VALUES
-                         ('$product','$lot_no','$code','$nominal','$effective','$length','IN',NOW())");
-            $msg = "Mother coil $code berjaya dimasukkan (IN).";
-        }else{
-            $msg = "Mother coil $code sudah ada dalam stok!";
-        }
-
-    }elseif($status == "OUT"){
-        // Cari coil dalam Raw Material
-        $check = $conn->query("SELECT * FROM raw_material_log WHERE code='$code' AND status='IN'");
-        if($check->num_rows > 0){
-            $coil = $check->fetch_assoc();
-
-            // Update Raw Material jadi OUT
-            $conn->query("UPDATE raw_material_log 
-                          SET status='OUT', date_out=NOW() 
-                          WHERE id=".$coil['id']);
-
-            // Masukkan juga ke Finish Product (status jadi IN)
-            $conn->query("INSERT INTO finish_product_log
-                         (product, lot_no, code, nominal, effective, length, status, date) 
-                         VALUES
-                         ('".$coil['product']."','".$coil['lot_no']."','".$coil['code']."',
-                          '".$coil['nominal']."','".$coil['effective']."','".$coil['length']."',
-                          'IN', NOW())");
-
-            $msg = "Mother coil $code berjaya dikeluarkan (OUT) & dimasukkan ke Finish Product (IN).";
-        }else{
-            $msg = "Mother coil $code tidak dijumpai dalam stok!";
-        }
-    }else{
-        $msg = "QR tidak sah!";
-    }
-
-    echo "<script>alert('$msg'); window.location='raw_material.php';</script>";
-}
-?> */
-
-
 <?php
+session_start();
+
+// 1. Authentication & Role Check
+if (!isset($_SESSION['role'])) {
+    header("Location: login.php");
+    exit;
+}
+
+if ($_SESSION['role'] !== 'slitting') {
+    die("Access denied");
+}
+
 include 'config.php';
 
-if(isset($_POST['qrcode'])){
-    $qrcode = $_POST['qrcode'];
-    $data = explode("|", $qrcode);
+// 2. Filter Logic (Month & Year)
+$month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
+$year  = isset($_GET['year'])  ? (int)$_GET['year']  : (int)date('Y');
 
-    $status = strtoupper($data[0] ?? ''); 
-    $code   = $data[1] ?? '';
+if ($month < 1 || $month > 12) { $month = (int)date('m'); }
+if ($year < 2020 || $year > 2030) { $year = (int)date('Y'); }
 
-    if($status == "IN"){
-        $product   = $data[2] ?? '';
-        $lot_no    = $data[3] ?? '';
-        $nominal   = $data[4] ?? 0;
-        $effective = $data[5] ?? 0;
-        $length    = $data[6] ?? 0;
+// 3. Summary Queries
+// Total IN for the selected month from Audit Log
+$in = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                    WHERE action_type='IN' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year")
+                    ->fetch_assoc()['total'];
 
-        // Use Prepared Statements for security
-        $stmt = $conn->prepare("SELECT id FROM raw_material_log WHERE code=? AND status='IN'");
-        $stmt->bind_param("s", $code);
-        $stmt->execute();
-        $check = $stmt->get_result();
+// Total OUT for the selected month from Audit Log
+$out = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                     WHERE action_type='OUT' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year")
+                     ->fetch_assoc()['total'];
 
-        if($check->num_rows == 0){
-            $ins = $conn->prepare("INSERT INTO raw_material_log (product, lot_no, code, nominal, effective, length, status, date_in) VALUES (?, ?, ?, ?, ?, ?, 'IN', NOW())");
-            $ins->bind_param("sssddd", $product, $lot_no, $code, $nominal, $effective, $length);
-            $ins->execute();
-            $msg = "Mother coil $code berjaya dimasukkan (IN).";
-        } else {
-            $msg = "Mother coil $code sudah ada dalam stok!";
-        }
+// Real-time Live Stock from Master Table
+$stock = $conn->query("SELECT COUNT(*) AS total FROM mother_coil WHERE stock = 1")->fetch_assoc()['total'];
 
-    } elseif($status == "OUT") {
-        // ... follow same pattern using prepared statements ...
-    } else {
-        $msg = "QR tidak sah! Format data salah.";
-    }
+// Leftovers from Slitting
+$afterCutStock = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log WHERE status='IN' AND action='cut_into_2'")
+                               ->fetch_assoc()['total'];
 
-    echo "<script>alert('$msg'); window.location='raw_material.php';</script>";
-}
+// 4. Main Data Query (JOIN to pull specs from master table)
+$query = "SELECT log.*, mc.product, mc.grade, mc.coil_no, mc.lot_no, mc.width, mc.length 
+          FROM raw_material_log log
+          JOIN mother_coil mc ON log.mother_id = mc.id
+          WHERE (MONTH(log.date_in)=$month AND YEAR(log.date_in)=$year) 
+             OR (MONTH(log.date_out)=$month AND YEAR(log.date_out)=$year) 
+          ORDER BY log.id DESC";
+$result = $conn->query($query);
+
+$page_title = "Raw Material Inventory";
+include 'header.php'; 
 ?>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam me-2"></i>Raw Material Inventory</h2>
+    <div class="d-flex gap-2">
+        <a href="raw_material_export.php?month=<?= $month ?>&year=<?= $year ?>" class="btn btn-success shadow-sm">
+            <i class="bi bi-file-earmark-excel me-1"></i> Download
+        </a>
+        <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#manualCoilModal">
+            <i class="bi bi-pencil-square me-1"></i> Manual Entry
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="small fw-bold text-muted">Month:</label>
+                <select name="month" onchange="this.form.submit()" class="form-select form-select-sm w-auto d-inline-block ms-1">
+                    <?php for($m=1;$m<=12;$m++): ?>
+                        <option value="<?= $m ?>" <?= ($m==$month)?'selected':'' ?>>
+                            <?= date("F", mktime(0,0,0,$m,1)) ?>
+                        </option>
+                    <?php endfor; ?>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="small fw-bold text-muted">Year:</label>
+                <select name="year" onchange="this.form.submit()" class="form-select form-select-sm w-auto d-inline-block ms-1">
+                    <?php for($y=2024; $y<=2030; $y++): ?>
+                        <option value="<?= $y ?>" <?= ($y==$year)?'selected':'' ?>><?= $y ?></option>
+                    <?php endfor; ?>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4 text-center">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white">
+            <div class="card-body">
+                <h6 class="text-muted small mb-1">MONTHLY IN</h6>
+                <h3 class="text-success fw-bold mb-0"><?= (int)$in ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white">
+            <div class="card-body">
+                <h6 class="text-muted small mb-1">MONTHLY OUT</h6>
+                <h3 class="text-danger fw-bold mb-0"><?= (int)$out ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-primary text-white">
+            <div class="card-body">
+                <h6 class="small mb-1">LIVE STOCK (TOTAL)</h6>
+                <h3 class="fw-bold mb-0"><?= (int)$stock ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-warning text-dark">
+            <div class="card-body">
+                <h6 class="small mb-1">AFTER CUT STOCK</h6>
+                <h3 class="fw-bold mb-0"><?= (int)$afterCutStock ?></h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-dark text-white fw-bold py-3">
+        <i class="bi bi-clock-history me-2"></i>Raw Material Log (Unified View)
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle text-center mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Product</th>
+                    <th>Grade</th> 
+                    <th>Lot No / Coil No</th> 
+                    <th>Length (mtr)</th>
+                    <th>Width (mm)</th>
+                    <th>Date In</th>
+                    <th>Date Out</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if($result && $result->num_rows > 0): ?>
+                    <?php while($row = $result->fetch_assoc()): 
+                        $combinedLotCoil = trim(($row['lot_no'] ?? '-') . ' ' . ($row['coil_no'] ?? ''));
+                    ?>
+                    <tr>
+                        <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product']) ?></span></td>
+                        <td><span class="fw-bold text-primary"><?= htmlspecialchars($row['grade']) ?></span></td> 
+                        <td class="fw-medium"><?= htmlspecialchars($combinedLotCoil) ?></td>
+                        <td class="fw-bold"><?= number_format((float)$row['length']) ?></td>
+                        <td><?= number_format((float)$row['width']) ?></td>
+                        <td class="small"><?= $row['date_in'] ?? '-' ?></td>
+                        <td class="small"><?= $row['date_out'] ?? '-' ?></td>
+                        <td><span class="badge bg-info text-dark"><?= $row['action'] ?></span></td>
+                    </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="8" class="py-4 text-muted">No records found for the selected period.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-5">
+    <div class="card-header bg-success text-white fw-bold py-3">
+        <i class="bi bi-scissors me-2"></i>Available Stock After Cut
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle text-center mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Product</th>
+                    <th>Grade</th> <th>Lot No / Coil No</th> 
+                    <th>Length (mtr)</th>
+                    <th>Width (mm)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php 
+                $resultCut = $conn->query("SELECT log.*, mc.product, mc.grade, mc.coil_no, mc.lot_no, mc.width, mc.length 
+                                           FROM raw_material_log log
+                                           JOIN mother_coil mc ON log.mother_id = mc.id
+                                           WHERE log.status='IN' AND log.action='cut_into_2' 
+                                           ORDER BY log.id ASC");
+                if($resultCut && $resultCut->num_rows > 0):
+                    while($rowCut = $resultCut->fetch_assoc()): 
+                        $combinedLotCoilCut = trim($rowCut['lot_no'] . ' ' . $rowCut['coil_no']);
+                    ?>
+                <tr>
+                    <td><span class="badge bg-secondary"><?= htmlspecialchars($rowCut['product']) ?></span></td>
+                    <td><span class="fw-bold text-primary"><?= htmlspecialchars($rowCut['grade']) ?></span></td>
+                    <td class="fw-medium"><?= htmlspecialchars($combinedLotCoilCut) ?></td>
+                    <td class="text-success fw-bold"><?= number_format((float)$rowCut['length']) ?></td>
+                    <td><?= number_format((float)$rowCut['width']) ?></td>
+                    <td>
+                        <a href="add_slitting.php?stock_id=<?= $rowCut['id'] ?>" class="btn btn-primary btn-sm rounded-pill px-3">
+                            USE <i class="bi bi-chevron-right small ms-1"></i>
+                        </a>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="6" class="py-4 text-muted">No leftover stock from "Cut Into 2" process.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="manualCoilModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Manual Material Entry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="raw_material_scan.php" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Select Mother Coil</label>
+                        <select name="mother_id" class="form-select" required>
+                            <option value="">-- Choose Coil No / Lot No --</option>
+                            <?php
+                            $coils = $conn->query("SELECT id, coil_no, lot_no, product FROM mother_coil ORDER BY date_created DESC");
+                            while($c = $coils->fetch_assoc()): ?>
+                                <option value="<?= $c['id'] ?>">
+                                    <?= htmlspecialchars($c['coil_no']) ?> (Lot: <?= htmlspecialchars($c['lot_no']) ?>) - <?= htmlspecialchars($c['product']) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Action Type</label>
+                        <select name="action_type" class="form-select" required>
+                            <option value="IN">Manual IN (Warehouse Intake)</option>
+                            <option value="OUT">Manual OUT (Production/Removal)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Remark</label>
+                        <textarea name="remark" class="form-control" placeholder="Reason for manual override..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Process Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<?php include 'footer.php'; ?>

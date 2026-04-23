@@ -6,7 +6,7 @@ if (!isset($_SESSION['role'])) {
     exit;
 }
 
-// ONLY slitting can access
+// ONLY slitting role can access
 if ($_SESSION['role'] !== 'slitting') {
     die("Access denied");
 }
@@ -16,25 +16,29 @@ include 'config.php';
 $from_stock = isset($_GET['stock_id']);
 $source_data = null;
 $source_type = '';
+$mother_id = null;
 
 if ($from_stock) {
-    // From Stock After Cut
+    // From Stock After Cut (raw_material_log leftovers)
     $stock_id = intval($_GET['stock_id']);
-    $source_data = $conn->query("SELECT * FROM raw_material_log WHERE id=$stock_id AND status='IN' AND action='cut_into_2'")->fetch_assoc();
+    // Improved Query: JOIN with mother_coil to get original specs if needed
+    $query = "SELECT log.*, mc.grade 
+              FROM raw_material_log log 
+              JOIN mother_coil mc ON log.mother_id = mc.id 
+              WHERE log.id=$stock_id AND log.status='IN' AND log.action='cut_into_2'";
+    $source_data = $conn->query($query)->fetch_assoc();
     $source_type = 'stock';
 
     if (!$source_data) {
         die("Stock not found or already used.");
     }
+    $mother_id = $source_data['mother_id'];
 } else {
-    // From Mother Coil
+    // From fresh Mother Coil
     if (!isset($_GET['mother_id'])) {
-        die("Error: mother_id was not provided in the URL.");
+        die("Error: mother_id was not provided.");
     }
     $mother_id = intval($_GET['mother_id']);
-    if ($mother_id <= 0) {
-        die("Error: Invalid mother_id provided in the URL.");
-    }
     $source_data = $conn->query("SELECT * FROM mother_coil WHERE id=$mother_id")->fetch_assoc();
     $source_type = 'mother';
 
@@ -50,282 +54,236 @@ if ($from_stock) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body { padding:20px; }
-        .slitting-box { border:1px solid #ddd; padding:15px; border-radius:8px; margin-bottom:15px; background:#f9f9f9; }
-        .info-badge { background:#e3f2fd; padding:8px; border-radius:5px; font-size:0.9em; margin-top:10px; }
+        body { background-color: #f8f9fa; padding:20px; }
+        .card { border: none; border-radius: 12px; }
+        .slitting-box { border: 1px solid #dee2e6; padding: 20px; border-radius: 10px; margin-bottom: 20px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .info-badge { background: #e7f1ff; color: #0d6efd; padding: 10px; border-radius: 6px; font-size: 0.85em; margin-top: 15px; border-left: 4px solid #0d6efd; }
+        .source-info { border-left: 5px solid #198754; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h3 class="mb-4">
-        <i class="bi bi-scissors"></i> Add Slitting Product
-        <?php if($from_stock): ?>
-            <span class="badge bg-success">From Stock After Cut</span>
-        <?php endif; ?>
-    </h3>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-scissors me-2"></i>Production Slitting</h3>
+        <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
 
-    <div class="mb-3 p-3 border rounded bg-light">
-        <p class="mb-1"><strong>Product:</strong> <?= htmlspecialchars($source_data['product']) ?></p>
-        <p class="mb-1"><strong>Lot No:</strong> <?= htmlspecialchars($source_data['lot_no']) ?></p>
-        <p class="mb-1"><strong>Coil No:</strong> <?= htmlspecialchars($source_data['coil_no']) ?></p>
-        <p class="mb-0"><strong><?= $from_stock ? 'Available' : 'Original' ?> Length:</strong> <?= htmlspecialchars($source_data['length']) ?> meter</p>
+    <div class="card shadow-sm mb-4 source-info">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Product</small>
+                    <span class="fw-bold"><?= htmlspecialchars($source_data['product']) ?></span>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Lot / Coil No</small>
+                    <span class="fw-bold"><?= htmlspecialchars($source_data['lot_no']) ?> / <?= htmlspecialchars($source_data['coil_no']) ?></span>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Grade</small>
+                    <span class="badge bg-primary"><?= htmlspecialchars($source_data['grade']) ?></span>
+                </div>
+                <div class="col-md-3 text-end">
+                    <small class="text-muted d-block"><?= $from_stock ? 'Current Leftover' : 'Input' ?> Length</small>
+                    <span class="h5 mb-0 text-success fw-bold"><?= number_format($source_data['length'], 2) ?> m</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <form method="post" action="save_slitting.php">
         <input type="hidden" name="source_type" value="<?= $source_type ?>">
+        <input type="hidden" name="mother_id" value="<?= $mother_id ?>">
         <?php if($from_stock): ?>
             <input type="hidden" name="stock_id" value="<?= $source_data['id'] ?>">
-        <?php else: ?>
-            <input type="hidden" name="mother_id" value="<?= $source_data['id'] ?>">
         <?php endif; ?>
-
+        
         <input type="hidden" name="product" value="<?= htmlspecialchars($source_data['product']) ?>">
         <input type="hidden" name="lot_no" value="<?= htmlspecialchars($source_data['lot_no']) ?>">
         <input type="hidden" name="coil_no" value="<?= htmlspecialchars($source_data['coil_no']) ?>">
-        <input type="hidden" name="original_length" value="<?= htmlspecialchars($source_data['length']) ?>">
 
-        <div class="mb-4">
-            <label class="form-label"><strong>Select Cut Type</strong></label>
-            <div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()" required>
-                    <label class="form-check-label" for="cutNormal">Normal</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()" required>
-                    <label class="form-check-label" for="cutInto2">Cut Into 2</label>
-                </div>
-            </div>
-        </div>
-
-        <div id="cutInto2Section" style="display:none;" class="mb-4">
-            <h5>Slit Information</h5>
-            <div class="row">
-                <div class="col-md-6 mb-2">
-                    <label class="form-label">Slit Quantity</label>
-                    <input type="number" step="0.1" name="slit_quantity" id="slitQuantity" class="form-control"
-                           placeholder="Enter quantity to use" oninput="calculateStock()">
-                    <small class="text-muted">Enter how many meters use for slit</small>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <label class="form-label">Stock</label>
-                    <input type="number" step="0.1" name="stock" id="stock" class="form-control"
-                           placeholder="Auto calculated" readonly
-                           style="background:#e9ecef; font-weight:bold; color:#0d6efd;">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-3">1. Select Cut Type</h5>
+                <div class="d-flex gap-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()" required>
+                        <label class="form-check-label fw-medium" for="cutNormal text-success">Normal Slitting</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()" required>
+                        <label class="form-check-label fw-medium" for="cutInto2 text-warning">Cut Into 2 (Keep Leftover)</label>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Step 3: Number of Rolls -->
-        <div id="rollCountSection" style="display:none;" class="mb-4">
-            <label class="form-label"><strong>How many rolls?</strong></label>
-            <select name="total" id="total" class="form-select w-auto" onchange="generateForm()" required>
-                <option value="">Select number of rolls</option>
-                <?php for($i=1;$i<=10;$i++): ?>
-                    <option value="<?= $i ?>"><?= $i ?> Roll<?= $i>1?'s':'' ?></option>
-                <?php endfor; ?>
-            </select>
+        <div id="cutInto2Section" style="display:none;" class="card shadow-sm mb-4 border-warning">
+            <div class="card-body bg-light-subtle">
+                <h5 class="mb-3 text-warning-emphasis">2. Slit Calculation</h5>
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label class="form-label fw-bold">Slit Quantity (Length Used)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.1" name="slit_quantity" id="slitQuantity" class="form-control form-control-lg" placeholder="0.0" oninput="calculateStock()">
+                            <span class="input-group-text">meters</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="form-label fw-bold">Remaining Stock</label>
+                        <div class="input-group">
+                            <input type="number" step="0.1" name="stock" id="stock" class="form-control form-control-lg bg-white" readonly>
+                            <span class="input-group-text">meters</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Step 4: Roll Details Form -->
+        <div id="rollCountSection" style="display:none;" class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="mb-3">3. Output Configuration</h5>
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <label class="form-label mb-0 fw-bold">Number of Output Rolls:</label>
+                    </div>
+                    <div class="col-auto">
+                        <select name="total" id="total" class="form-select form-select-lg w-auto" onchange="generateForm()" required>
+                            <option value="">-- Choose --</option>
+                            <?php for($i=1;$i<=20;$i++): ?>
+                                <option value="<?= $i ?>"><?= $i ?> Roll<?= $i>1?'s':'' ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="slittingForm"></div>
 
-        <div id="normalCutSfcSection" style="display: none;" class="p-3 my-3 border rounded bg-light">
-            <h5><i class="bi bi-box-seam"></i> Shop Floor Control (SFC) Balance</h5>
-            <p><small>If there is leftover material after cutting the rolls, enter the balance width here to save it to SFC inventory. Leave blank if there is no balance.</small></p>
-            <div class="row">
-                <div class="col-md-12">
-                    <label class="form-label"><strong>Balance Width to Save (mm)</strong></label>
-                    <input type="number" step="0.1" name="sfc_balance_width" class="form-control" placeholder="Optional: Enter width to save">
+        <div id="normalCutSfcSection" style="display: none;" class="card shadow-sm mb-4 border-info">
+            <div class="card-body">
+                <h5 class="text-info-emphasis"><i class="bi bi-box-seam me-2"></i>Save to SFC </h5>
+                <p class="text-muted small">Capture unused width as SFC scrap/balance.</p>
+                <div class="input-group">
+                    <span class="input-group-text">Balance Width</span>
+                    <input type="number" step="0.1" name="sfc_balance_width" class="form-control" placeholder="Optional (mm)">
+                    <span class="input-group-text">mm</span>
                 </div>
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary mt-3" id="submitBtn" style="display:none;">
-            <i class="bi bi-check-circle"></i> Save
-        </button>
-        <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-danger mt-3">Cancel</a>
+        <div class="mb-5">
+            <button type="submit" class="btn btn-primary btn-lg px-5 shadow" id="submitBtn" style="display:none;">
+                <i class="bi bi-save me-2"></i> Save Production Data
+            </button>
+        </div>
     </form>
 </div>
-
-
-
 
 <script>
 const sourceData = {
     lotNo: '<?= htmlspecialchars($source_data['lot_no']) ?>',
     coilNo: '<?= htmlspecialchars($source_data['coil_no']) ?>',
     originalLength: <?= floatval($source_data['length']) ?>,
-    originalWidth: <?= floatval($source_data['width'] ?? 0) ?>,
     fromStock: <?= $from_stock ? 'true' : 'false' ?>
 };
 
 function calculateStock() {
     const slitQty = parseFloat(document.getElementById('slitQuantity').value) || 0;
-    const originalLength = sourceData.originalLength;
-    const stock = originalLength - slitQty;
-
-    document.getElementById('stock').value = stock >= 0 ? stock.toFixed(2) : 0;
-
+    const stock = sourceData.originalLength - slitQty;
     const stockField = document.getElementById('stock');
-    if (stock < 0) {
-        stockField.style.color = '#dc3545';
-        stockField.style.fontWeight = 'bold';
-    } else if (stock === 0) {
-        stockField.style.color = '#ffc107';
-        stockField.style.fontWeight = 'bold';
-    } else {
-        stockField.style.color = '#0d6efd';
-        stockField.style.fontWeight = 'bold';
-    }
-}
+    
+    stockField.value = stock.toFixed(2);
+    stockField.style.color = stock < 0 ? '#dc3545' : (stock === 0 ? '#ffc107' : '#198754');
 
-function updateLotNoDisplay(rollIndex) {
-    const cutSelects = document.querySelectorAll('select[name="cut_letter[]"]');
-    const cutLetter = cutSelects[rollIndex]?.value || '';
-    const infoBadge = document.getElementById(`infoBadge${rollIndex}`);
-
-    let lotNoDisplay = sourceData.lotNo;
-    if (cutLetter) lotNoDisplay = sourceData.lotNo + cutLetter;
-
-    const lengthLabel = sourceData.fromStock ? 'Available length' : 'Original length';
-    infoBadge.innerHTML = `
-        ${lotNoDisplay} ${sourceData.coilNo}-R${rollIndex + 1} | ${lengthLabel}: ${sourceData.originalLength.toFixed(2)} meter
-    `;
+    // Update length in the roll forms if they exist
+    const lengths = document.querySelectorAll('.length-input');
+    lengths.forEach(input => {
+        if(document.querySelector('input[name="cut_type"]:checked').value === 'cut_into_2') {
+            input.value = slitQty;
+        }
+    });
 }
 
 function handleCutTypeChange(){
     const cutType = document.querySelector('input[name="cut_type"]:checked')?.value;
-    const cutInto2Section = document.getElementById('cutInto2Section');
-    const rollCountSection = document.getElementById('rollCountSection');
-    const slittingForm = document.getElementById('slittingForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const totalSelect = document.getElementById('total');
-    const normalCutSfcSection = document.getElementById('normalCutSfcSection');
-
-    // Reset form
-    slittingForm.innerHTML = '';
-    submitBtn.style.display = 'none';
-    totalSelect.value = '';
     
-    // Hide all optional sections
-    if (normalCutSfcSection) normalCutSfcSection.style.display = 'none';
-
-    if (cutType === 'normal') {
-        cutInto2Section.style.display = 'none';
-        rollCountSection.style.display = 'block';
-        if (normalCutSfcSection) normalCutSfcSection.style.display = 'block';
-        document.getElementById('slitQuantity').required = false;
-    } else if (cutType === 'cut_into_2') {
-        cutInto2Section.style.display = 'block';
-        rollCountSection.style.display = 'block';
-        document.getElementById('slitQuantity').required = true;
-        calculateStock();
-    } else {
-        cutInto2Section.style.display = 'none';
-        rollCountSection.style.display = 'none';
-    }
+    // UI Toggles
+    document.getElementById('cutInto2Section').style.display = (cutType === 'cut_into_2') ? 'block' : 'none';
+    document.getElementById('rollCountSection').style.display = (cutType) ? 'block' : 'none';
+    document.getElementById('normalCutSfcSection').style.display = (cutType === 'normal') ? 'block' : 'none';
+    
+    // Reset output form
+    document.getElementById('total').value = '';
+    document.getElementById('slittingForm').innerHTML = '';
+    document.getElementById('submitBtn').style.display = 'none';
 }
 
 function generateForm(){
     const total = parseInt(document.getElementById('total').value);
     const container = document.getElementById('slittingForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const cutType = document.querySelector('input[name="cut_type"]:checked')?.value;
-
-    container.innerHTML = "";
-
-    if (!cutType) {
-        alert('Please select Cut Type first');
-        document.getElementById('total').value = '';
+    const cutType = document.querySelector('input[name="cut_type"]:checked').value;
+    
+    if (!total) {
+        container.innerHTML = '';
+        document.getElementById('submitBtn').style.display = 'none';
         return;
     }
 
-    // Validation for Cut Into 2
-    if (cutType === 'cut_into_2') {
-        const slitQty = parseFloat(document.getElementById('slitQuantity').value) || 0;
-        const stock = parseFloat(document.getElementById('stock').value) || 0;
-
-        if (slitQty <= 0) {
-            alert('Please enter Slit Quantity first');
-            document.getElementById('total').value = '';
-            return;
-        }
-        if (stock < 0) {
-            alert('Stock calculation error.');
-            document.getElementById('total').value = '';
-            return;
-        }
-    }
-
-    if (total > 0) {
-        submitBtn.style.display = 'inline-block';
-    } else {
-        submitBtn.style.display = 'none';
-        return;
-    }
-
-    let autoLength = sourceData.originalLength;
-    let lengthReadonly = true;
-
-    if (cutType === 'cut_into_2') {
-        autoLength = parseFloat(document.getElementById('slitQuantity').value) || sourceData.originalLength;
-        lengthReadonly = false; //editable
-    } else {
-        // For normal cut, length is per-roll and should not be readonly
-        autoLength = ''; 
-        lengthReadonly = false;
-    }
-
-    const lengthLabel = sourceData.fromStock ? 'Available length' : 'Original length';
+    let defaultLength = (cutType === 'cut_into_2') ? (parseFloat(document.getElementById('slitQuantity').value) || 0) : '';
+    let isReadonly = (cutType === 'cut_into_2');
 
     let html = "";
     for (let i = 1; i <= total; i++) {
         html += `
             <div class="slitting-box">
-                <h5>Roll ${i}</h5>
-
-                <input type="hidden" name="roll_number[]" value="R${i}">
-
-                <div class="mb-2">
-                    <label class="form-label">Roll No</label>
-                    <input type="text" name="roll_no[]" class="form-control"
-                           value="R${i}" readonly style="background:#e9ecef;">
+                <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
+                    <h5 class="mb-0 text-primary">Output Roll #${i}</h5>
+                    <span class="badge bg-light text-dark border">Label: R${i}</span>
                 </div>
+                <input type="hidden" name="roll_no[]" value="R${i}">
 
-                <div class="mb-2">
-                    <label class="form-label">Cut Letter (Optional)</label>
-                    <select name="cut_letter[]" class="form-select" onchange="updateLotNoDisplay(${i-1})">
-                        <option value="">-- None --</option>
-                        <option value="a">a</option>
-                        <option value="b">b</option>
-                        <option value="c">c</option>
-                        <option value="d">d</option>
-                    </select>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Cut Letter</label>
+                        <select name="cut_letter[]" class="form-select" onchange="updateLotLabel(${i-1})">
+                            <option value="">Standard</option>
+                            <option value="a">a</option>
+                            <option value="b">b</option>
+                            <option value="c">c</option>
+                            <option value="d">d</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Length (m)</label>
+                        <input type="number" step="0.1" name="length[]" class="form-control length-input" 
+                               value="${defaultLength}" ${isReadonly ? 'readonly' : ''} required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Width (mm)</label>
+                        <input type="number" step="0.1" name="width[]" class="form-control" required>
+                    </div>
                 </div>
-
-                <div class="mb-2">
-                    <label class="form-label">Length (meter)</label>
-                    <input type="number" step="0.1" name="length[]" class="form-control length-input"
-                           value="${autoLength}"
-                           ${lengthReadonly ? 'readonly style="background:#e9ecef;"' : ''}
-                           required>
-                </div>
-
-                <div class="mb-2">
-                    <label class="form-label">Width (mm)</label>
-                    <input type="number" step="0.1" name="width[]" class="form-control" required>
-                </div>
-
+                
                 <div class="info-badge" id="infoBadge${i-1}">
-                    ${sourceData.lotNo} ${sourceData.coilNo}-R${i} | ${lengthLabel}: ${sourceData.originalLength.toFixed(2)} meter
+                    <i class="bi bi-tag me-1"></i> ${sourceData.lotNo} ${sourceData.coilNo}-R${i}
                 </div>
             </div>
         `;
     }
 
     container.innerHTML = html;
+    document.getElementById('submitBtn').style.display = 'inline-block';
+}
+
+function updateLotLabel(idx) {
+    const letter = document.querySelectorAll('select[name="cut_letter[]"]')[idx].value;
+    const badge = document.getElementById(`infoBadge${idx}`);
+    badge.innerHTML = `<i class="bi bi-tag me-1"></i> ${sourceData.lotNo}${letter} ${sourceData.coilNo}-R${idx+1}`;
 }
 </script>
 

@@ -4,7 +4,7 @@ include 'config.php';
 $qr = $_POST['qr'] ?? '';
 
 // =====================
-// 0) Return URL (balik page asal)
+// 0) Return URL Logic
 // =====================
 $returnUrl = $_SERVER['HTTP_REFERER'] ?? ($BASE_URL . "/index.php");
 $returnUrl = trim($returnUrl);
@@ -21,7 +21,7 @@ function back_to($returnUrl, $status)
 }
 
 // =====================
-// 1) Normalize input
+// 1) Normalize Input
 // =====================
 $qr = trim($qr);
 $qr = str_replace(["\r\n", "\r"], "\n", $qr);
@@ -37,7 +37,7 @@ $firstLine = preg_replace('/[[:cntrl:]]+/', '', $firstLine);
 $firstLine = trim($firstLine);
 
 // =====================
-// 2) Parse QR
+// 2) Parse QR (LOT=...;COIL=...)
 // =====================
 $lot_no = '';
 $coil_no = '';
@@ -63,7 +63,7 @@ if (trim($lot_no) === '' || trim($coil_no) === '') {
 }
 
 // =====================
-// 3) Cari mother coil 
+// 3) Find Mother Coil
 // =====================
 $stmt = $conn->prepare("SELECT * FROM mother_coil WHERE lot_no=? AND coil_no=?");
 $stmt->bind_param("ss", $lot_no, $coil_no);
@@ -82,36 +82,28 @@ $mother_id = (int)$mother['id'];
 $conn->begin_transaction();
 
 try {
+    // Select for update to prevent race conditions
     $stmt = $conn->prepare("SELECT status FROM mother_coil WHERE id=? FOR UPDATE");
     $stmt->bind_param("i", $mother_id);
     $stmt->execute();
     $currentStatus = $stmt->get_result()->fetch_assoc()['status'];
     $stmt->close();
 
-    if ($currentStatus === 'NEW' || $currentStatus === null) {
-        // First scan: NEW -> IN
-        $stmt = $conn->prepare("UPDATE mother_coil SET status='IN', date_in=NOW() WHERE id=?");
+    if ($currentStatus === 'NEW' || $currentStatus === null || $currentStatus === '') {
+        // First scan: Mark as IN and update Stock Boolean
+        $stmt = $conn->prepare("UPDATE mother_coil SET status='IN', stock=1, date_in=NOW() WHERE id=?");
         $stmt->bind_param("i", $mother_id);
         $stmt->execute();
         $stmt->close();
 
-        // ✅ MODIFIED: Added 'grade' to the log insertion
-        $stmt = $conn->prepare("INSERT INTO raw_material_log 
-            (mother_id, product, lot_no, coil_no, grade, length, width, status, date_in, action, remark) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN', NOW(), 'IN', 'Scanned from mother coil')");
-        
-        $stmt->bind_param("issssdd",
-            $mother_id,
-            $mother['product'],
-            $mother['lot_no'],
-            $mother['coil_no'],
-            $mother['grade'],   // Pulled from mother_coil table
-            $mother['length'],
-            $mother['width']
-        );
+        // Normalized raw_material_log (Only FK and status)
+        $stmt = $conn->prepare("INSERT INTO raw_material_log (mother_id, status, date_in, action, remark) VALUES (?, 'IN', NOW(), 'SCAN_IN', 'Material scanned into production')");
+        $stmt->bind_param("i", $mother_id);
         $stmt->execute();
         $stmt->close();
 
-        $stmt = $conn->prepare("INSERT INTO mother_coil_log (mother_id, status) VALUES (?, 'IN')");
+        // New Unified Audit Log
+        $stmt = $conn->prepare("INSERT INTO mother_coil_audit_log (mother_id, action_type, performed_at, remark) VALUES (?, 'SCAN_IN', NOW(), 'QR Code scanned at intake')");
         $stmt->bind_param("i", $mother_id);
         $stmt->execute();
         $stmt->close();
@@ -120,7 +112,8 @@ try {
         back_to($returnUrl, "in");
 
     } elseif ($currentStatus === 'IN') {
-        $conn->rollback();
+        // If already IN, proceed to process (Slitting)
+        $conn->commit();
         header("Location: add_slitting.php?mother_id=" . $mother_id);
         exit;
 

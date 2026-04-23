@@ -7,7 +7,6 @@ if (!isset($_SESSION['role'])) {
     exit;
 }
 
-// Only 'slitting' role can access this specific dashboard
 if ($_SESSION['role'] !== 'slitting') {
     header("Location: index.php");
     exit;
@@ -16,18 +15,31 @@ if ($_SESSION['role'] !== 'slitting') {
 include 'config.php';
 
 // 2. Data Fetching Logic
-// === RAW MATERIAL SUMMARY ===
-$in_raw  = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log WHERE status='IN'")->fetch_assoc()['total'];
-$out_raw = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log WHERE status='OUT'")->fetch_assoc()['total'];
-$stock_raw = max(0, (int)$in_raw - (int)$out_raw);
+$month = (int)date('m');
+$year  = (int)date('Y');
 
+// === RAW MATERIAL SUMMARY (Updated for MK 3.0 Structure) ===
+
+// Count 'IN' actions for the current month from the Unified Audit Log
+$in_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                             WHERE action_type='IN' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year");
+$in_raw = $in_raw_query->fetch_assoc()['total'];
+
+// Count 'OUT' actions for the current month
+$out_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                              WHERE action_type='OUT' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year");
+$out_raw = $out_raw_query->fetch_assoc()['total'];
+
+// Get actual Live Stock from Master Table
+$stock_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil WHERE stock=1");
+$stock_raw = $stock_raw_query->fetch_assoc()['total'];
+
+// Get Stock After Cut (Leftovers)
 $afterCutStock_raw = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
                                     WHERE status='IN' AND action='cut_into_2'")
                                     ->fetch_assoc()['total'];
 
-// === FINISH PRODUCT SUMMARY ===
-$month = (int)date('m');
-$year  = (int)date('Y');
+// === FINISH PRODUCT SUMMARY (Stays largely the same) ===
 
 $in_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product 
                            WHERE status='IN' AND is_completed=0
@@ -51,7 +63,6 @@ $deliver_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product
                                 AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year")
                                 ->fetch_assoc()['total'];
 
-// 3. Set Page Title and Include Standard Header
 $page_title = "Dashboard - MK Slitting";
 include 'header.php'; 
 ?>
@@ -73,28 +84,27 @@ include 'header.php';
 </form>
 
 <div class="row g-4">
-
     <div class="col-md-6">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-success text-white fw-bold">
-                <i class="bi bi-box-seam me-2"></i> Raw Material Summary
+                <i class="bi bi-box-seam me-2"></i> Raw Material (Monthly)
             </div>
             <div class="card-body">
                 <div class="row text-center">
                     <div class="col-3 border-end">
-                        <small class="text-muted d-block">IN</small>
+                        <small class="text-muted d-block">MTD IN</small>
                         <h4 class="text-success fw-bold"><?= $in_raw ?></h4>
                     </div>
                     <div class="col-3 border-end">
-                        <small class="text-muted d-block">OUT</small>
+                        <small class="text-muted d-block">MTD OUT</small>
                         <h4 class="text-danger fw-bold"><?= $out_raw ?></h4>
                     </div>
                     <div class="col-3 border-end">
-                        <small class="text-muted d-block">STOCK</small>
+                        <small class="text-muted d-block">CURRENT STOCK</small>
                         <h4 class="text-primary fw-bold"><?= $stock_raw ?></h4>
                     </div>
                     <div class="col-3">
-                        <small class="text-muted d-block">CUT 2</small>
+                        <small class="text-muted d-block">AFTER CUT</small>
                         <h4 class="text-warning fw-bold"><?= $afterCutStock_raw ?></h4>
                     </div>
                 </div>
@@ -135,16 +145,22 @@ include 'header.php';
             </div>
         </div>
     </div>
-
 </div>
 
 <script>
+    // Global Scanner Focus
     document.addEventListener('click', function() {
         document.getElementById('qrInput').focus();
     });
+
+    const qrInput = document.getElementById('qrInput');
+    qrInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            if (this.value.trim() !== '') {
+                document.getElementById('scanForm').submit();
+            }
+        }
+    });
 </script>
 
-<?php 
-// 4. Include Standard Footer (Closes divs and body)
-include 'footer.php'; 
-?>
+<?php include 'footer.php'; ?>

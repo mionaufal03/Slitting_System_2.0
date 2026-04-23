@@ -13,19 +13,19 @@ if ($_SESSION['role'] !== 'slitting') {
 
 require_once 'config.php';
 
-// 2. Data Logic: Historical cumulative count
+// 2. Data Logic: Historical summary from the new Unified Audit Log
 $monthly_summary_query = "
-    SELECT
-        DATE_FORMAT(date_in, '%Y-%m') AS month_year,
-        COUNT(*) AS total_count
-    FROM
-        raw_material_log
-    WHERE
-        status = 'IN' AND date_in IS NOT NULL
-    GROUP BY
-        month_year
-    ORDER BY
-        month_year DESC;
+    SELECT 
+        DATE_FORMAT(performed_at, '%Y-%m') AS month_year, 
+        COUNT(*) AS total_count 
+    FROM 
+        mother_coil_audit_log 
+    WHERE 
+        action_type = 'IN' 
+    GROUP BY 
+        month_year 
+    ORDER BY 
+        month_year DESC
 ";
 $monthly_summary_result = $conn->query($monthly_summary_query);
 $raw_material_monthly_summary = [];
@@ -42,8 +42,13 @@ $raw_material_data = [];
 $slitting_product_delivered_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Raw Material In Query
-    $stmt_in = $conn->prepare("SELECT * FROM raw_material_log WHERE MONTH(date_in) = ? AND YEAR(date_in) = ? AND status = 'IN'");
+    // 3. Raw Material Inbound (JOINED to get specs from Master Table)
+    $stmt_in = $conn->prepare("
+        SELECT audit.performed_at as date_in, mc.coil_no, mc.product, mc.lot_no, mc.width, mc.length 
+        FROM mother_coil_audit_log audit
+        JOIN mother_coil mc ON audit.mother_id = mc.id
+        WHERE MONTH(audit.performed_at) = ? AND YEAR(audit.performed_at) = ? AND audit.action_type = 'IN'
+    ");
     $stmt_in->bind_param("ss", $selected_month, $selected_year);
     $stmt_in->execute();
     $result_in = $stmt_in->get_result();
@@ -52,8 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $stmt_in->close();
 
-    // Slitting Product Delivered Query
-    $stmt_out = $conn->prepare("SELECT * FROM slitting_product WHERE MONTH(delivered_at) = ? AND YEAR(delivered_at) = ?");
+    // 4. Slitting Product Delivered Query
+    $stmt_out = $conn->prepare("SELECT * FROM slitting_product WHERE MONTH(delivered_at) = ? AND YEAR(delivered_at) = ? AND status='DELIVERED'");
     $stmt_out->bind_param("ss", $selected_month, $selected_year);
     $stmt_out->execute();
     $result_out = $stmt_out->get_result();
@@ -69,41 +74,39 @@ include 'header.php';
 
 <style>
     .summary-icon { font-size: 2rem; opacity: 0.8; }
-    /* Style for Printing */
     @media print {
         .no-print { display: none !important; }
-        .col-md-10 { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; padding: 0 !important; }
         .card { box-shadow: none !important; border: 1px solid #ddd !important; }
     }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4 no-print">
-    <h2><i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Monthly Performance Report</h2>
+    <h2><i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Operational Report</h2>
     <button onclick="window.print()" class="btn btn-dark shadow-sm">
         <i class="bi bi-printer me-1"></i> Print Report
     </button>
 </div>
 
 <div class="card shadow-sm mb-4 no-print border-0">
-    <div class="card-header bg-white border-bottom py-3">
-        <h5 class="fw-bold mb-0 text-secondary">Historical Checked-in Summary</h5>
+    <div class="card-header bg-white py-3">
+        <h5 class="fw-bold mb-0 text-secondary">Historical Inbound Summary</h5>
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0 text-center">
             <thead class="table-light">
                 <tr>
                     <th>Month</th>
-                    <th>Total Raw Materials Scanned</th>
+                    <th>Total Coils Received</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($raw_material_monthly_summary)): ?>
-                    <tr><td colspan="2" class="py-4 text-muted">No data available.</td></tr>
+                    <tr><td colspan="2" class="py-4 text-muted">No audit logs found.</td></tr>
                 <?php else: ?>
                     <?php foreach ($raw_material_monthly_summary as $summary): ?>
                         <tr>
                             <td class="fw-medium text-primary"><?php echo date("F Y", strtotime($summary['month_year'] . "-01")); ?></td>
-                            <td><span class="badge bg-info text-dark px-3 py-2 fs-6"><?php echo $summary['total_count']; ?></span></td>
+                            <td><span class="badge bg-info text-dark px-3 py-2 fs-6"><?php echo $summary['total_count']; ?> Coils</span></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -113,10 +116,10 @@ include 'header.php';
 </div>
 
 <div class="card shadow-sm mb-5 no-print border-0">
-    <div class="card-body bg-light rounded shadow-inner">
+    <div class="card-body bg-light rounded">
         <form action="report.php" method="post" class="row g-3 justify-content-center align-items-end">
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted">Filter Month</label>
+                <label class="form-label small fw-bold text-muted">Month</label>
                 <select name="month" class="form-select">
                     <?php for ($i = 1; $i <= 12; $i++): ?>
                         <option value="<?php echo str_pad($i, 2, '0', STR_PAD_LEFT); ?>" <?php echo ($selected_month == $i) ? 'selected' : ''; ?>>
@@ -126,7 +129,7 @@ include 'header.php';
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted">Filter Year</label>
+                <label class="form-label small fw-bold text-muted">Year</label>
                 <select name="year" class="form-select">
                     <?php for ($i = date('Y'); $i >= date('Y') - 5; $i--): ?>
                         <option value="<?php echo $i; ?>" <?php echo ($selected_year == $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
@@ -134,9 +137,7 @@ include 'header.php';
                 </select>
             </div>
             <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
-                    <i class="bi bi-search me-2"></i>Generate Detailed Report
-                </button>
+                <button type="submit" class="btn btn-primary w-100 shadow-sm">Generate Data</button>
             </div>
         </form>
     </div>
@@ -151,22 +152,22 @@ include 'header.php';
 
     <div class="row g-4 mb-5">
         <div class="col-md-6">
-            <div class="card bg-primary text-white shadow-sm h-100 border-0">
+            <div class="card bg-primary text-white border-0">
                 <div class="card-body d-flex align-items-center justify-content-between p-4">
                     <div>
-                        <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Raw Material Inbound</h6>
-                        <h2 class="display-5 fw-bold mb-0"><?php echo count($raw_material_data); ?></h2>
+                        <h6 class="text-uppercase opacity-75 small fw-bold">Raw Material Inbound</h6>
+                        <h2 class="display-6 fw-bold mb-0"><?php echo count($raw_material_data); ?></h2>
                     </div>
                     <i class="bi bi-box-arrow-in-right summary-icon"></i>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card bg-success text-white shadow-sm h-100 border-0">
+            <div class="card bg-success text-white border-0">
                 <div class="card-body d-flex align-items-center justify-content-between p-4">
                     <div>
-                        <h6 class="text-uppercase mb-1 opacity-75 small fw-bold">Finished Goods Delivered</h6>
-                        <h2 class="display-5 fw-bold mb-0"><?php echo count($slitting_product_delivered_data); ?></h2>
+                        <h6 class="text-uppercase opacity-75 small fw-bold">Finished Goods Delivered</h6>
+                        <h2 class="display-6 fw-bold mb-0"><?php echo count($slitting_product_delivered_data); ?></h2>
                     </div>
                     <i class="bi bi-truck summary-icon"></i>
                 </div>
@@ -175,30 +176,30 @@ include 'header.php';
     </div>
 
     <div class="mb-5">
-        <h4 class="fw-bold mb-3"><i class="bi bi-journal-text text-primary me-2"></i>Raw Material In Details</h4>
+        <h5 class="fw-bold mb-3"><i class="bi bi-journal-text text-primary me-2"></i>Inbound Detail (Master Records)</h5>
         <div class="card shadow-sm border-0">
             <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle mb-0 text-center" style="font-size: 0.9rem;">
+                <table class="table table-bordered table-sm align-middle mb-0 text-center">
                     <thead class="table-dark">
                         <tr>
-                            <th>Date In</th>
+                            <th>Date Recv</th>
                             <th>Coil No</th>
                             <th>Product</th>
                             <th>Lot No</th>
-                            <th>W x L</th>
+                            <th>Dimensions (W x L)</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($raw_material_data)): ?>
-                            <tr><td colspan="5" class="py-4 text-muted">No raw material data found.</td></tr>
+                            <tr><td colspan="5" class="py-4 text-muted">No inbound records for this period.</td></tr>
                         <?php else: ?>
                             <?php foreach ($raw_material_data as $row): ?>
                                 <tr>
-                                    <td class="small"><?php echo htmlspecialchars($row['date_in'] ?? ''); ?></td>
-                                    <td class="fw-bold text-dark"><?php echo htmlspecialchars($row['coil_no'] ?? ''); ?></td>
-                                    <td><span class="badge bg-secondary"><?php echo htmlspecialchars($row['product'] ?? ''); ?></span></td>
-                                    <td class="text-muted"><?php echo htmlspecialchars($row['lot_no'] ?? ''); ?></td>
-                                    <td><?php echo ($row['width'] ?? '0') . ' x ' . ($row['length'] ?? '0'); ?></td>
+                                    <td class="small"><?php echo date("d/m/Y H:i", strtotime($row['date_in'])); ?></td>
+                                    <td class="fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></td>
+                                    <td><span class="badge bg-secondary"><?php echo htmlspecialchars($row['product']); ?></span></td>
+                                    <td><?php echo htmlspecialchars($row['lot_no']); ?></td>
+                                    <td><?php echo number_format($row['width'],1) . ' x ' . number_format($row['length'],0); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -209,30 +210,30 @@ include 'header.php';
     </div>
 
     <div class="mb-5">
-        <h4 class="fw-bold mb-3"><i class="bi bi-check-circle text-success me-2"></i>Delivered Product Details</h4>
+        <h5 class="fw-bold mb-3"><i class="bi bi-check-circle text-success me-2"></i>Outbound Detail (Delivered Products)</h5>
         <div class="card shadow-sm border-0">
             <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle mb-0 text-center" style="font-size: 0.9rem;">
+                <table class="table table-bordered table-sm align-middle mb-0 text-center">
                     <thead class="table-success text-dark">
                         <tr>
                             <th>Delivered At</th>
                             <th>Coil No</th>
                             <th>Product</th>
                             <th>Lot / Roll</th>
-                            <th>Dimensions</th>
+                            <th>Size</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($slitting_product_delivered_data)): ?>
-                            <tr><td colspan="5" class="py-4 text-muted">No delivered products found.</td></tr>
+                            <tr><td colspan="5" class="py-4 text-muted">No deliveries found.</td></tr>
                         <?php else: ?>
                             <?php foreach ($slitting_product_delivered_data as $row): ?>
                                 <tr>
-                                    <td class="small"><?php echo htmlspecialchars($row['delivered_at'] ?? ''); ?></td>
-                                    <td class="fw-bold"><?php echo htmlspecialchars($row['coil_no'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($row['product'] ?? ''); ?></td>
-                                    <td class="text-muted"><?php echo ($row['lot_no'] ?? '') . ' / ' . ($row['roll_no'] ?? ''); ?></td>
-                                    <td class="fw-bold text-success"><?php echo ($row['width'] ?? '0') . ' x ' . ($row['length'] ?? '0'); ?></td>
+                                    <td class="small"><?php echo date("d/m/Y", strtotime($row['delivered_at'])); ?></td>
+                                    <td class="fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['product']); ?></td>
+                                    <td class="text-muted"><?php echo $row['lot_no'] . ' / ' . $row['roll_no']; ?></td>
+                                    <td class="fw-bold text-success"><?php echo number_format($row['width'],1) . ' x ' . number_format($row['length'],0); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -244,8 +245,8 @@ include 'header.php';
 
 <?php else: ?>
     <div class="text-center py-5 opacity-50 no-print">
-        <i class="bi bi-calendar-check display-1 text-muted"></i>
-        <p class="mt-3 fs-5">Select a month and year above to generate detailed data.</p>
+        <i class="bi bi-calendar-range display-1 text-muted"></i>
+        <p class="mt-3 fs-5">Select a month and year to view detailed operational statistics.</p>
     </div>
 <?php endif; ?>
 

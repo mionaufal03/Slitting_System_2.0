@@ -20,26 +20,31 @@ $year  = isset($_GET['year'])  ? (int)$_GET['year']  : (int)date('Y');
 if ($month < 1 || $month > 12) { $month = (int)date('m'); }
 if ($year < 2020 || $year > 2030) { $year = (int)date('Y'); }
 
-// 3. Summary Queries
-$in = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
-                     WHERE status='IN' AND MONTH(date_in)=$month AND YEAR(date_in)=$year")
+// 3. Summary Queries (Using new unified mother_coil_audit_log)
+$in = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                    WHERE action_type='IN' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year")
+                    ->fetch_assoc()['total'];
+
+$out = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
+                     WHERE action_type='OUT' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year")
                      ->fetch_assoc()['total'];
 
-$out = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
-                      WHERE status='OUT' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")
-                      ->fetch_assoc()['total'];
+// Stock is pulled directly from the mother_coil table based on the 'stock' boolean
+$stock_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil WHERE stock = 1");
+$stock = $stock_query->fetch_assoc()['total'];
 
-$stock = max(0, (int)$in - (int)$out);
-
-$afterCutStock = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
-                               WHERE status='IN' AND action='cut_into_2'")
+// After Cut Stock (Leftovers from previous slitting)
+$afterCutStock = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log WHERE status='IN' AND action='cut_into_2'")
                                ->fetch_assoc()['total'];
 
-// 4. Main Data Query
-$result = $conn->query("SELECT * FROM raw_material_log 
-                        WHERE (MONTH(date_in)=$month AND YEAR(date_in)=$year) 
-                           OR (MONTH(date_out)=$month AND YEAR(date_out)=$year) 
-                        ORDER BY id DESC");
+// 4. Main Data Query (Using JOIN to get specs from master mother_coil table)
+$query = "SELECT log.*, mc.product, mc.grade, mc.coil_no, mc.lot_no, mc.width, mc.length 
+          FROM raw_material_log log
+          JOIN mother_coil mc ON log.mother_id = mc.id
+          WHERE (MONTH(log.date_in)=$month AND YEAR(log.date_in)=$year) 
+             OR (MONTH(log.date_out)=$month AND YEAR(log.date_out)=$year) 
+          ORDER BY log.id DESC";
+$result = $conn->query($query);
 
 $page_title = "Raw Material Inventory";
 include 'header.php'; 
@@ -121,9 +126,9 @@ include 'header.php';
     </div>
 </div>
 
-<div class="card shadow-sm border-0 mb-">
+<div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-dark text-white fw-bold py-3">
-        <i class="bi bi-clock-history me-2"></i>Raw Material Log
+        <i class="bi bi-clock-history me-2"></i>Raw Material Log (Unified View)
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle text-center mb-0">
@@ -133,7 +138,7 @@ include 'header.php';
                     <th>Grade</th> 
                     <th>Lot No / Coil No</th> 
                     <th>Length (mtr)</th>
-                    <th>Width</th>
+                    <th>Width (mm)</th>
                     <th>Date In</th>
                     <th>Date Out</th>
                     <th>Action</th>
@@ -145,13 +150,14 @@ include 'header.php';
                         $combinedLotCoil = trim(($row['lot_no'] ?? '-') . ' ' . ($row['coil_no'] ?? ''));
                     ?>
                     <tr>
-                        <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product'] ?? '-') ?></span></td>
-                        <td><span class="fw-bold text-primary"><?= htmlspecialchars($row['grade'] ?? '-') ?></span></td> <td class="fw-medium"><?= htmlspecialchars($combinedLotCoil) ?></td>
-                        <td class="fw-bold"><?= isset($row['length']) ? number_format((float)$row['length']) : '-' ?></td>
-                        <td><?= isset($row['width']) ? number_format((float)$row['width']) : '-' ?></td>
+                        <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product']) ?></span></td>
+                        <td><span class="fw-bold text-primary"><?= htmlspecialchars($row['grade']) ?></span></td> 
+                        <td class="fw-medium"><?= htmlspecialchars($combinedLotCoil) ?></td>
+                        <td class="fw-bold"><?= number_format((float)$row['length']) ?></td>
+                        <td><?= number_format((float)$row['width']) ?></td>
                         <td class="small"><?= $row['date_in'] ?? '-' ?></td>
                         <td class="small"><?= $row['date_out'] ?? '-' ?></td>
-                        <td><span class="badge bg-info text-dark"><?= $row['action'] ?? '-' ?></span></td>
+                        <td><span class="badge bg-info text-dark"><?= $row['action'] ?></span></td>
                     </tr>
                     <?php endwhile; ?>
                 <?php else: ?>
@@ -179,22 +185,21 @@ include 'header.php';
             </thead>
             <tbody>
                 <?php 
-                $resultCut = $conn->query("SELECT * FROM raw_material_log WHERE status='IN' AND action='cut_into_2' ORDER BY id ASC");
+                $resultCut = $conn->query("SELECT log.*, mc.product, mc.grade, mc.coil_no, mc.lot_no, mc.width, mc.length 
+                                           FROM raw_material_log log
+                                           JOIN mother_coil mc ON log.mother_id = mc.id
+                                           WHERE log.status='IN' AND log.action='cut_into_2' 
+                                           ORDER BY log.id ASC");
                 if($resultCut && $resultCut->num_rows > 0):
                     while($rowCut = $resultCut->fetch_assoc()): 
-                        $combinedLotCoilCut = trim(($rowCut['lot_no'] ?? '-') . ' ' . ($rowCut['coil_no'] ?? ''));
+                        $combinedLotCoilCut = trim($rowCut['lot_no'] . ' ' . $rowCut['coil_no']);
                     ?>
                 <tr>
-                    <td><span class="badge bg-secondary"><?= htmlspecialchars($rowCut['product'] ?? '-') ?></span></td>
-                    
-                    <td><span class="fw-bold text-primary"><?= htmlspecialchars($rowCut['grade'] ?? '-') ?></span></td>
-                    
+                    <td><span class="badge bg-secondary"><?= htmlspecialchars($rowCut['product']) ?></span></td>
+                    <td><span class="fw-bold text-primary"><?= htmlspecialchars($rowCut['grade']) ?></span></td>
                     <td class="fw-medium"><?= htmlspecialchars($combinedLotCoilCut) ?></td>
-                    
                     <td class="text-success fw-bold"><?= number_format((float)$rowCut['length']) ?></td>
-                    
                     <td><?= number_format((float)$rowCut['width']) ?></td>
-                    
                     <td>
                         <a href="add_slitting.php?stock_id=<?= $rowCut['id'] ?>" class="btn btn-primary btn-sm rounded-pill px-3">
                             USE <i class="bi bi-chevron-right small ms-1"></i>
@@ -254,7 +259,7 @@ include 'header.php';
         });
     }
 
-    // Manual Entry Logic
+    // Manual Entry Logic (Original Functional split logic)
     const manualBtn = document.getElementById('manualSubmitButton');
     const combinedInput = document.getElementById('combined_input');
     const feedback = document.getElementById('validationFeedback');
@@ -269,6 +274,7 @@ include 'header.php';
                 const coilNo = parts.slice(1).join(' '); 
 
                 combinedInput.classList.remove('is-invalid');
+                // Format for scan_mother_action.php
                 qrInput.value = `LOT=${lotNo};COIL=${coilNo}`;
                 scanForm.submit();
             } else {
@@ -283,6 +289,7 @@ include 'header.php';
         });
     }
 
+    // Keep hidden input focused for physical scanner
     setInterval(() => {
         const el = document.activeElement;
         const modal = document.getElementById('manualEntryModal');
