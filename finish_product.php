@@ -13,6 +13,16 @@ if ($_SESSION['role'] !== 'slitting') {
 
 include 'config.php';
 
+
+// --- ADD THIS BLOCK TO HANDLE REDIRECT ---
+if (isset($_GET['download']) && $_GET['download'] === 'excel') {
+    $m = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
+    $y = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
+    header("Location: finish_product_export.php?month=$m&year=$y");
+    exit;
+}
+// ----------------------------------------
+
 // Bulan & Tahun dipilih
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
 $year  = isset($_GET['year'])  ? (int)$_GET['year']  : (int)date('Y');
@@ -148,7 +158,7 @@ include 'header.php';
 <h2 class="mb-4"><i class="bi bi-check-circle me-2"></i>Finish Product</h2>
 
 <form id="scanFormProduct" method="post" action="scan_product_action.php" autocomplete="off">
-    <input id="qrInputProduct" type="text" name="qr" style="position:fixed; left:-9999px; opacity:0;" autofocus>
+    <input id="qrInputProduct" type="text" name="qr" inputmode="none" style="position:fixed; left:-9999px; opacity:0;" autofocus>
 </form>
 
 <div class="row mb-3 g-2 align-items-center">
@@ -230,7 +240,7 @@ include 'header.php';
                 <td><span class="badge <?= $sourceDisplay['class'] ?>"><?= $sourceDisplay['label'] ?></span></td>
                 <td><?= htmlspecialchars($row['product'] ?? '') ?></td>
                 <td><?= htmlspecialchars($lotCoil ?? '') ?></td>
-                <td><?= htmlspecialchars($row['roll_no'] ?? '') ?></td>
+                <td><?= str_replace('R', 'R-', htmlspecialchars($row['roll_no'] ?? '')) ?></td>
                 <td><?= $row['width'] ?></td><td><?= $row['length'] ?></td><td><?= $row['actual_length'] ?></td>
                 <td><?= $row['date_out'] ?></td><td><?= $row['delivered_at'] ?></td>
                 <td><img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" alt="QR"></td>

@@ -18,29 +18,23 @@ include 'config.php';
 $month = (int)date('m');
 $year  = (int)date('Y');
 
-// === RAW MATERIAL SUMMARY (Updated for MK 3.0 Structure) ===
-
-// Count 'IN' actions for the current month from the Unified Audit Log
+// RAW MATERIAL SUMMARY
 $in_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
                              WHERE action_type='IN' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year");
 $in_raw = $in_raw_query->fetch_assoc()['total'];
 
-// Count 'OUT' actions for the current month
 $out_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil_audit_log 
                               WHERE action_type='OUT' AND MONTH(performed_at)=$month AND YEAR(performed_at)=$year");
 $out_raw = $out_raw_query->fetch_assoc()['total'];
 
-// Get actual Live Stock from Master Table
 $stock_raw_query = $conn->query("SELECT COUNT(*) AS total FROM mother_coil WHERE stock=1");
 $stock_raw = $stock_raw_query->fetch_assoc()['total'];
 
-// Get Stock After Cut (Leftovers)
 $afterCutStock_raw = $conn->query("SELECT COUNT(*) AS total FROM raw_material_log 
                                     WHERE status='IN' AND action='cut_into_2'")
                                     ->fetch_assoc()['total'];
 
-// === FINISH PRODUCT SUMMARY (Stays largely the same) ===
-
+// FINISH PRODUCT SUMMARY
 $in_finish = $conn->query("SELECT COUNT(*) AS total FROM slitting_product 
                            WHERE status='IN' AND is_completed=0
                            AND (is_recoiled=0 OR is_recoiled IS NULL) 
@@ -80,7 +74,7 @@ include 'header.php';
 <?php endif; ?>
 
 <form id="scanForm" method="post" action="scan_mother_action.php" autocomplete="off" style="position:absolute; left:-9999px;">
-    <input id="qrInput" type="text" name="qr" autofocus>
+    <input id="qrInput" type="text" name="qr" inputmode="none" autofocus>
 </form>
 
 <div class="row g-4">
@@ -100,7 +94,7 @@ include 'header.php';
                         <h4 class="text-danger fw-bold"><?= $out_raw ?></h4>
                     </div>
                     <div class="col-3 border-end">
-                        <small class="text-muted d-block">CURRENT STOCK</small>
+                        <small class="text-muted d-block">LIVE STOCK</small>
                         <h4 class="text-primary fw-bold"><?= $stock_raw ?></h4>
                     </div>
                     <div class="col-3">
@@ -148,9 +142,16 @@ include 'header.php';
 </div>
 
 <script>
-    // Global Scanner Focus
+    // Scanner Focus Logic
+    // Detect if device is a touch-based tablet/phone
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
     document.addEventListener('click', function() {
-        document.getElementById('qrInput').focus();
+        // If it's a tablet, we only focus if the user isn't clicking another input
+        const el = document.activeElement;
+        if (!isTouchDevice || (el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'TEXTAREA')) {
+            document.getElementById('qrInput').focus();
+        }
     });
 
     const qrInput = document.getElementById('qrInput');

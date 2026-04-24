@@ -88,7 +88,7 @@ include 'header.php';
 </div>
 
 <form id="scanForm" method="post" action="scan_mother_action.php" autocomplete="off" style="position:absolute; left:-9999px;">
-    <input id="qrInput" type="text" name="qr" autofocus>
+    <input id="qrInput" type="text" name="qrcode" inputmode="none" autofocus>
 </form>
 
 <div class="row g-3 mb-4 text-center">
