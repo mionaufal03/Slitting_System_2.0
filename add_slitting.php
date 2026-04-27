@@ -71,6 +71,14 @@ if ($from_stock) {
         </a>
     </div>
 
+    <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-scissors me-2"></i>Production Slitting</h3>
+        <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+
     <div class="card shadow-sm mb-4 source-info">
         <div class="card-body">
             <div class="row">
@@ -79,8 +87,8 @@ if ($from_stock) {
                     <span class="fw-bold"><?= htmlspecialchars($source_data['product']) ?></span>
                 </div>
                 <div class="col-md-3">
-                    <small class="text-muted d-block">Lot / Coil No</small>
-                    <span class="fw-bold"><?= htmlspecialchars($source_data['lot_no']) ?> / <?= htmlspecialchars($source_data['coil_no']) ?></span>
+                    <small class="text-muted d-block">Lot No</small>
+                    <span class="fw-bold"><?= htmlspecialchars($source_data['lot_no']) ?>  <?= htmlspecialchars($source_data['coil_no']) ?></span>
                 </div>
                 <div class="col-md-3">
                     <small class="text-muted d-block">Grade</small>
@@ -108,15 +116,16 @@ if ($from_stock) {
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <h5 class="card-title mb-3">1. Select Cut Type</h5>
-                <div class="d-flex gap-4">
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()" required>
-                        <label class="form-check-label fw-medium" for="cutNormal text-success">Normal Slitting</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()" required>
-                        <label class="form-check-label fw-medium" for="cutInto2 text-warning">Cut Into 2 (Keep Leftover)</label>
-                    </div>
+                <div class="btn-group w-100" role="group" aria-label="Cut Type Selection">
+                    <input type="radio" class="btn-check" name="cut_type" id="cutNormal" value="normal" onchange="handleCutTypeChange()" required>
+                    <label class="btn btn-outline-success py-3 fw-bold" for="cutNormal">
+                        <i class="bi bi-scissors me-2"></i> Normal Slitting
+                    </label>
+
+                    <input type="radio" class="btn-check" name="cut_type" id="cutInto2" value="cut_into_2" onchange="handleCutTypeChange()" required>
+                    <label class="btn btn-outline-warning py-3 fw-bold" for="cutInto2">
+                        <i class="bi bi-intersect me-2"></i> Cut Into 2 (Keep Leftover)
+                    </label>
                 </div>
             </div>
         </div>
@@ -145,7 +154,7 @@ if ($from_stock) {
 
         <div id="rollCountSection" style="display:none;" class="card shadow-sm mb-4">
             <div class="card-body">
-                <h5 class="mb-3">3. Output Configuration</h5>
+                <h5 class="mb-3" id="outputStepTitle">2. Output Configuration</h5>
                 <div class="row align-items-center">
                     <div class="col-auto">
                         <label class="form-label mb-0 fw-bold">Number of Output Rolls:</label>
@@ -184,6 +193,14 @@ if ($from_stock) {
     </form>
 </div>
 
+        <div class="mb-5">
+            <button type="submit" class="btn btn-primary btn-lg px-5 shadow" id="submitBtn" style="display:none;">
+                <i class="bi bi-save me-2"></i> Save Production Data
+            </button>
+        </div>
+    </form>
+</div>
+
 <script>
 const sourceData = {
     lotNo: '<?= htmlspecialchars($source_data['lot_no']) ?>',
@@ -200,7 +217,7 @@ function calculateStock() {
     stockField.value = stock.toFixed(2);
     stockField.style.color = stock < 0 ? '#dc3545' : (stock === 0 ? '#ffc107' : '#198754');
 
-    // Update length in the roll forms if they exist
+    // Sync length to all rolls in "Cut Into 2" mode
     const lengths = document.querySelectorAll('.length-input');
     lengths.forEach(input => {
         if(document.querySelector('input[name="cut_type"]:checked').value === 'cut_into_2') {
@@ -211,12 +228,20 @@ function calculateStock() {
 
 function handleCutTypeChange(){
     const cutType = document.querySelector('input[name="cut_type"]:checked')?.value;
+    const outputStepTitle = document.getElementById('outputStepTitle');
     
     // UI Toggles
     document.getElementById('cutInto2Section').style.display = (cutType === 'cut_into_2') ? 'block' : 'none';
     document.getElementById('rollCountSection').style.display = (cutType) ? 'block' : 'none';
     document.getElementById('normalCutSfcSection').style.display = (cutType === 'normal') ? 'block' : 'none';
     
+    // Fix Step Numbering
+    if (cutType === 'cut_into_2') {
+        outputStepTitle.innerText = "3. Output Configuration";
+    } else {
+        outputStepTitle.innerText = "2. Output Configuration";
+    }
+
     // Reset output form
     document.getElementById('total').value = '';
     document.getElementById('slittingForm').innerHTML = '';
@@ -234,8 +259,10 @@ function generateForm(){
         return;
     }
 
-    let defaultLength = (cutType === 'cut_into_2') ? (parseFloat(document.getElementById('slitQuantity').value) || 0) : '';
-    let isReadonly = (cutType === 'cut_into_2');
+    // Determine the default length based on selection
+    let defaultLength = (cutType === 'cut_into_2') 
+        ? (parseFloat(document.getElementById('slitQuantity').value) || 0) 
+        : sourceData.originalLength;
 
     let html = "";
     for (let i = 1; i <= total; i++) {
@@ -261,11 +288,12 @@ function generateForm(){
                     <div class="col-md-4">
                         <label class="form-label small fw-bold">Length (m)</label>
                         <input type="number" step="0.1" name="length[]" class="form-control length-input" 
-                               value="${defaultLength}" ${isReadonly ? 'readonly' : ''} required>
+                               value="${defaultLength}" readonly required>
+                        <small class="text-muted">Auto-filled based on selection</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-bold">Width (mm)</label>
-                        <input type="number" step="0.1" name="width[]" class="form-control" required>
+                        <input type="number" step="0.1" name="width[]" class="form-control" placeholder="Enter Width" required>
                     </div>
                 </div>
                 
@@ -281,7 +309,8 @@ function generateForm(){
 }
 
 function updateLotLabel(idx) {
-    const letter = document.querySelectorAll('select[name="cut_letter[]"]')[idx].value;
+    const selectElem = document.querySelectorAll('select[name="cut_letter[]"]')[idx];
+    const letter = selectElem.value;
     const badge = document.getElementById(`infoBadge${idx}`);
     badge.innerHTML = `<i class="bi bi-tag me-1"></i> ${sourceData.lotNo}${letter} ${sourceData.coilNo}-R${idx+1}`;
 }
