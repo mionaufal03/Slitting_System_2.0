@@ -87,8 +87,8 @@ include 'header.php';
     </div>
 </div>
 
-<form id="scanForm" method="post" action="scan_mother_action.php" autocomplete="off" style="position:absolute; left:-9999px;">
-    <input id="qrInput" type="text" name="qrcode" inputmode="none" autofocus>
+<form id="scanForm" method="post" action="scan_mother_action.php" style="position:absolute; left:-9999px;">
+    <input id="qrInput" type="text" name="qr" autofocus>
 </form>
 
 <div class="row g-3 mb-4 text-center">
@@ -289,16 +289,38 @@ include 'header.php';
         });
     }
 
-    // Keep hidden input focused for physical scanner
-    setInterval(() => {
-        const el = document.activeElement;
-        const modal = document.getElementById('manualEntryModal');
-        const isModalOpen = modal ? modal.classList.contains('show') : false;
-        
-        if (!isModalOpen && !['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)) {
-            if(qrInput) qrInput.focus();
+// 1. Keep the input focused at all times
+setInterval(() => {
+    const el = document.activeElement;
+    const modal = document.getElementById('manualEntryModal');
+    // Don't steal focus if the user is typing in the manual entry modal
+    const isModalOpen = modal ? modal.classList.contains('show') : false;
+    
+    if (!isModalOpen && !['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)) {
+        if(qrInput) qrInput.focus();
+    }
+}, 500);
+
+    const qrInput = document.getElementById('qrInput');
+    const scanForm = document.getElementById('scanForm');
+
+    // Focus management: ensure the hidden input is always focused
+    document.addEventListener('click', () => {
+        // Only focus if a modal isn't open
+        const modalOpen = document.querySelector('.modal.show');
+        if(!modalOpen) qrInput.focus();
+    });
+
+ // 2. Submit immediately on Scan (Enter key)
+qrInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // Prevent default page refresh
+        if (this.value.trim() !== '') {
+            scanForm.submit(); // Submit the form to scan_mother_action.php
         }
-    }, 1000);
+    }
+});
+
 </script>
 
 <?php include 'footer.php'; ?>

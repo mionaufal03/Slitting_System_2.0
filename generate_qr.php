@@ -42,16 +42,13 @@ if ($type === 'slitting') {
 } */
 
 } else {
-    $lot     = trim($_GET['lot'] ?? '');
-    $coil    = trim($_GET['coil'] ?? '');
-    $product = trim($_GET['product'] ?? '');
-    $nominal = trim($_GET['width'] ?? 0);   // Assuming nominal is width
-    $effective = trim($_GET['width'] ?? 0); // Assuming effective is width
-    $length  = trim($_GET['length'] ?? 0);
+    $lot  = trim($_GET['lot'] ?? '');
+    $coil = trim($_GET['coil'] ?? '');
 
-    // Format: STATUS|CODE|PRODUCT|LOT|NOMINAL|EFFECTIVE|LENGTH
-    // We set status to IN so the scanner knows it's arriving in the warehouse
-    $qrText = "IN|$coil|$product|$lot|$nominal|$effective|$length";
+    if ($lot === '' || $coil === '') die('Invalid QR data');
+
+    // This creates a string like "LOT=826175;COIL=FK-1"
+    $qrText = "LOT=$lot;COIL=$coil";
 }
 
 // Ensure there is always text
