@@ -224,7 +224,7 @@ include 'header.php';
           </div>
           <div class="mb-3">
             <label class="form-label">Lot No</label>
-            <input type="text" name="lot_no" id="add_lot_no" class="form-control" required maxlength="6" pattern="^[A-Z0-9]{6}$" title="Lot No must be 6 characters (A-Z, 0-9)">
+            <input type="text" name="lot_no" id="add_lot_no" class="form-control" required maxlength="8" pattern="^[a-zA-Z0-9]{4,8}$" title="Lot No must be 4 to 8 characters (letters or numbers)">
           </div>
           <div class="mb-3">
             <label class="form-label">Coil No</label>
@@ -277,7 +277,7 @@ include 'header.php';
           </div>
           <div class="mb-3">
             <label class="form-label">Lot No</label>
-            <input type="text" name="lot_no" id="edit_lot_no" class="form-control" required maxlength="6" pattern="^[A-Z0-9]{6}$">
+            <input type="text" name="lot_no" id="edit_lot_no" class="form-control" required maxlength="8" pattern="^[a-zA-Z0-9]{4,8}$">
           </div>
           <div class="mb-3">
             <label class="form-label">Coil No</label>
@@ -308,10 +308,15 @@ include 'header.php';
 <script>
 function validateLotNo(input){
   if(!input) return;
-  input.value = input.value.toUpperCase();
-  const regex = /^[A-Z0-9]{6}$/;
+  
+  // REMOVED: input.value = input.value.toUpperCase(); 
+  // This allows the user to keep lowercase letters as typed.
+
+  // Regex explanation: Allow a-z, A-Z, and 0-9 with length 4 to 8
+  const regex = /^[a-zA-Z0-9]{4,8}$/; 
+  
   if(input.value !== '' && !regex.test(input.value)){
-    input.setCustomValidity('Lot No must be exactly 6 characters (A-Z, 0-9).');
+    input.setCustomValidity('Lot No must be 4-8 characters long (letters and numbers allowed).');
   } else {
     input.setCustomValidity('');
   }
@@ -382,7 +387,7 @@ document.querySelectorAll('.editBtn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('edit_id').value       = btn.dataset.id;
     document.getElementById('edit_product').value  = btn.dataset.product || '';
-    document.getElementById('edit_lot_no').value   = (btn.dataset.lot_no || '').toUpperCase();
+    document.getElementById('edit_lot_no').value = (btn.dataset.lot_no || '');
     document.getElementById('edit_coil_no').value  = btn.dataset.coil_no || '';
     document.getElementById('edit_grade').value    = btn.dataset.grade || '';
     document.getElementById('edit_width').value    = btn.dataset.width || '';
