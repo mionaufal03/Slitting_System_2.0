@@ -254,46 +254,48 @@ include 'header.php';
                 <td><?= $row['date_out'] ?></td><td><?= $row['delivered_at'] ?></td>
                 <td><img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" alt="QR"></td>
                 <td>
-                    <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting QC...</i></small>
-                    
-                    <?php elseif($row['status'] == 'REJECTED'): ?>
-                        <div class="d-flex flex-column gap-1">
-                            <form method="post" onsubmit="return confirm('Reslit this rejected product?')">
-                                <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
-                                <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
-                            </form>
-                            <form method="post" onsubmit="return confirm('Move rejected product to Recoiling?')">
-                                <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
-                                <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
-                            </form>
-                        </div>
+    <?php if($row['status'] == 'WAITING'): ?>
+        <small><i>Waiting QC...</i></small>
+    
+    <?php elseif($row['status'] == 'REJECTED'): ?>
+        <div class="d-flex flex-column gap-1">
+            <form method="post" onsubmit="return confirm('Reslit this rejected product?')">
+                <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
+            </form>
+            <form method="post" onsubmit="return confirm('Move rejected product to Recoiling?')">
+                <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
+            </form>
+        </div>
 
-                    <?php elseif($row['status'] == 'IN' && $row['is_completed'] == 0): ?>
-                        <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>&search=<?= urlencode($search) ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
-                    
-                    <?php elseif(($row['status'] == 'IN' && $row['stock_counted'] == 1) || $row['status'] == 'APPROVED'): ?>
-                        <div class="d-flex flex-column gap-1">
-                            <?php if($row['status'] != 'APPROVED'): ?>
-                            <form method="post" onsubmit="return confirm('Send to reslit?')">
-                                <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
-                                <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
-                            </form>
-                            <form method="post" onsubmit="return confirm('Move to Recoiling?')">
-                                <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
-                                <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
-                            </form>
-                            <?php endif; ?>
-                            
-                            <?php if($row['status'] == 'APPROVED'): ?>
-                                <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print & Deliver</a>
-                            <?php else: ?>
-                                <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-secondary btn-sm w-100">Print Only</a>
-                            <?php endif; ?>
-                        </div>
-                    <?php else: ?>
-                        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
-                    <?php endif; ?>
-                </td>
+    <?php elseif($row['status'] == 'IN'): ?>
+        <div class="d-flex flex-column gap-1">
+            <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>&search=<?= urlencode($search) ?>" 
+               class="btn <?= $row['is_completed'] == 0 ? 'btn-primary' : 'btn-outline-primary' ?> btn-sm w-100">
+               <?= $row['is_completed'] == 0 ? 'Update' : 'Edit Length' ?>
+            </a>
+
+            <?php if($row['stock_counted'] == 1): ?>
+                <form method="post" onsubmit="return confirm('Send to reslit?')">
+                    <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                    <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
+                </form>
+                <form method="post" onsubmit="return confirm('Move to Recoiling?')">
+                    <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                    <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
+                </form>
+                <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-secondary btn-sm w-100">Print Only</a>
+            <?php endif; ?>
+        </div>
+
+    <?php elseif($row['status'] == 'APPROVED'): ?>
+        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print & Deliver</a>
+    
+    <?php else: ?>
+        <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
+    <?php endif; ?>
+</td>
             </tr>
         <?php endwhile; else: ?>
             <tr><td colspan="13" class="py-4 text-muted">No products found matching "<?= htmlspecialchars($search) ?>"</td></tr>
@@ -312,7 +314,8 @@ include 'header.php';
                 <p><strong>Product:</strong> <?= htmlspecialchars($editData['product'] ?? '') ?> (<?= $editData['roll_no'] ?>)</p>
                 <div class="mb-3">
                     <label class="form-label">Actual Length (meter)</label>
-                    <input type="number" step="0.01" name="actual_length" id="actualLengthInput" class="form-control" required autofocus>
+                    <input type="number" step="0.01" name="actual_length" id="actualLengthInput" 
+       class="form-control" value="<?= $editData['actual_length'] ?>" required autofocus>
                 </div>
                 <div class="d-grid">
                     <button type="submit" class="btn btn-success" id="saveStockBtn" disabled>Save to Stock</button>
