@@ -110,45 +110,73 @@ $result = $conn->query($query);
                     <tbody>
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): ?>
-                                <tr>
-                                    <td class="ps-4">
-                                        <div class="fw-bold small"><?php echo date('d M Y', strtotime($row['date_in'])); ?></div>
-                                        <div class="text-muted extra-small" style="font-size: 0.75rem;">
-                                            <?php echo date('H:i A', strtotime($row['date_in'])); ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></span>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($row['product']); ?></td>
-                                    
-                             <td>
-                                <span class="text-dark fw-medium"><?php echo $row['width']; ?></span> <span class="text-muted small">mm</span>
-                                <i class="bi bi-x small text-muted"></i>
-                                <?php if (!empty($row['actual_length']) && $row['actual_length'] > 0): ?>
-                                    <span class="text-primary fw-bold"><?php echo $row['actual_length']; ?></span> 
-                                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">ACTUAL</span>
-                                <?php else: ?>
-                                    <span class="text-dark fw-medium"><?php echo $row['length']; ?></span> 
-                                <?php endif; ?>
-                                <span class="text-muted small">m</span>
-                            </td>
+    <tr>
+        <td class="ps-4">
+            <div class="fw-bold small"><?php echo date('d M Y', strtotime($row['date_in'])); ?></div>
+            <div class="text-muted extra-small" style="font-size: 0.75rem;">
+                <?php echo date('H:i A', strtotime($row['date_in'])); ?>
+            </div>
+        </td>
+        <td>
+            <span class="badge bg-light text-dark border fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></span>
+        </td>
+        <td><?php echo htmlspecialchars($row['product']); ?></td>
+        
+        <td>
+            <span class="text-dark fw-medium"><?php echo $row['width']; ?></span> <span class="text-muted small">mm</span>
+            <i class="bi bi-x small text-muted"></i>
+            <?php if (!empty($row['actual_length']) && $row['actual_length'] > 0): ?>
+                <span class="text-primary fw-bold"><?php echo $row['actual_length']; ?></span> 
+                <span class="badge bg-info text-dark" style="font-size: 0.65rem;">ACTUAL</span>
+            <?php else: ?>
+                <span class="text-dark fw-medium"><?php echo $row['length']; ?></span> 
+            <?php endif; ?>
+            <span class="text-muted small">m</span>
+        </td>
 
-                                    <td>
-                                        <span class="badge rounded-pill bg-warning text-dark status-badge">
-                                            <i class="bi bi-search"></i> PENDING
-                                        </span>
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <a href="qc_approve.php?id=<?php echo $row['id']; ?>" class="btn btn-success btn-sm px-3 shadow-sm">
-                                            <i class="bi bi-check-lg"></i> Approve
-                                        </a>
-                                        <a href="edit_slitting.php?id=<?php echo $row['id']; ?>" class="btn btn-outline-secondary btn-sm ms-1">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
+        <td>
+            <span class="badge rounded-pill bg-warning text-dark status-badge">
+                <i class="bi bi-search"></i> PENDING
+            </span>
+        </td>
+
+        <td class="text-end pe-4">
+            <form method="POST" action="qc_process.php" class="d-inline">
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                <button type="submit" class="btn btn-success btn-sm px-3 shadow-sm">
+                    <i class="bi bi-check-lg"></i> Approve
+                </button>
+            </form>
+
+            <button type="button" class="btn btn-danger btn-sm px-3 shadow-sm" 
+                    data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $row['id']; ?>">
+                <i class="bi bi-x-lg"></i> Reject
+            </button>
+
+            <div class="modal fade" id="rejectModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <form method="POST" action="qc_process.php" class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">Reject Product: <?php echo htmlspecialchars($row['coil_no']); ?></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-start">
+                            <input type="hidden" name="action" value="reject">
+                            <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                            <label class="form-label fw-bold">Reason for Rejection:</label>
+                            <textarea name="comment" class="form-control" rows="3" required placeholder="Describe the defect..."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Confirm Reject</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </td>
+    </tr>
+<?php endwhile; ?>
                         <?php else: ?>
                             <tr>
                                 <td colspan="6" class="text-center py-5">
@@ -164,6 +192,8 @@ $result = $conn->query($query);
             </div>
         </div>
     </div>
+
+    
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

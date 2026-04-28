@@ -13,17 +13,15 @@ if ($_SESSION['role'] !== 'slitting') {
 
 include 'config.php';
 
-
-// --- ADD THIS BLOCK TO HANDLE REDIRECT ---
+// --- Handle Excel Export ---
 if (isset($_GET['download']) && $_GET['download'] === 'excel') {
     $m = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
     $y = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
     header("Location: finish_product_export.php?month=$m&year=$y");
     exit;
 }
-// ----------------------------------------
 
-// Bulan & Tahun dipilih
+// Params selection
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
 $year  = isset($_GET['year'])  ? (int)$_GET['year']  : (int)date('Y');
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -31,10 +29,10 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 if ($month < 1 || $month > 12) { $month = (int)date('m'); }
 if ($year < 2000 || $year > 2100) { $year = (int)date('Y'); }
 
-// --- Handle QC Approve ---
+// --- Handle QC Approve (If triggered from this page) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'qc_approve') {
     $id = intval($_POST['product_id']);
-    $stmt = $conn->prepare("UPDATE slitting_product SET status='APPROVED' WHERE id=? AND status='WAITING'");
+    $stmt = $conn->prepare("UPDATE slitting_product SET status='APPROVED', qc_comment=NULL WHERE id=? AND status='WAITING'");
     $stmt->bind_param("i", $id);
     if ($stmt->execute()) {
         header("Location: finish_product.php?success=qc_approved");
@@ -115,16 +113,16 @@ if ($search !== '') {
     $searchSql = " AND (product LIKE '%$search%' OR lot_no LIKE '%$search%' OR coil_no LIKE '%$search%' OR roll_no LIKE '%$search%' OR id LIKE '%$search%') ";
 }
 
-// Fetch Table Results
+// Fetch Table Results (Including REJECTED status)
 $sql = "SELECT * FROM slitting_product WHERE (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL)
         AND ((status='IN' AND MONTH(date_in)=$month AND YEAR(date_in)=$year) 
-             OR (status IN ('WAITING','OUT','APPROVED') AND MONTH(date_out)=$month AND YEAR(date_out)=$year) 
+             OR (status IN ('WAITING','OUT','APPROVED','REJECTED') AND MONTH(date_out)=$month AND YEAR(date_out)=$year) 
              OR (status='DELIVERED' AND MONTH(delivered_at)=$month AND YEAR(delivered_at)=$year))
         $searchSql
         ORDER BY id ASC";
 $result = $conn->query($sql);
 
-// Fetch Summaries
+// Summaries
 $in = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND is_completed=0 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
 $stock = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='IN' AND stock_counted=1 AND (is_recoiled=0 OR is_recoiled IS NULL) AND (is_reslitted=0 OR is_reslitted IS NULL) AND MONTH(date_in)=$month AND YEAR(date_in)=$year")->fetch_assoc()['total'];
 $waiting = $conn->query("SELECT IFNULL(COUNT(*),0) AS total FROM slitting_product WHERE status='WAITING' AND MONTH(date_out)=$month AND YEAR(date_out)=$year")->fetch_assoc()['total'];
@@ -148,7 +146,7 @@ include 'header.php';
     table th, table td { word-wrap: break-word; vertical-align: middle; font-size: 13px; }
     table td img { max-width: 60px; max-height: 60px; display: block; margin: 0 auto; }
     /* Column Widths */
-    table th:nth-child(1) { width: 45px; } table th:nth-child(2) { width: 100px; } table th:nth-child(3) { width: 90px; }
+    table th:nth-child(1) { width: 45px; } table th:nth-child(2) { width: 110px; } table th:nth-child(3) { width: 90px; }
     table th:nth-child(4) { width: 90px; } table th:nth-child(5) { width: 110px; } table th:nth-child(6) { width: 70px; }
     table th:nth-child(7) { width: 60px; } table th:nth-child(8) { width: 60px; } table th:nth-child(9) { width: 70px; }
     table th:nth-child(10) { width: 90px; } table th:nth-child(11) { width: 90px; } table th:nth-child(12) { width: 70px; }
@@ -215,14 +213,25 @@ include 'header.php';
         </thead>
         <tbody>
         <?php if($result && $result->num_rows>0): while($row=$result->fetch_assoc()): 
+            // Handle REJECTED color and badge
             $rowClass = match($row['status']) {
                 'IN' => $row['is_completed'] == 0 ? 'table-info' : 'table-primary',
-                'OUT' => 'table-danger', 'WAITING' => 'table-warning', 'DELIVERED' => 'table-success', default => ''
+                'OUT' => 'table-danger', 
+                'WAITING' => 'table-warning', 
+                'APPROVED' => 'table-success', 
+                'REJECTED' => 'table-danger', // Red for rejected
+                'DELIVERED' => 'table-success', 
+                default => ''
             };
+
             $statusBadge = match($row['status']) {
                 'IN' => $row['is_completed'] == 0 ? '<span class="badge bg-info">IN (Pending)</span>' : '<span class="badge bg-primary">IN (Stock)</span>',
-                'OUT' => '<span class="badge bg-danger">OUT</span>', 'WAITING' => '<span class="badge bg-warning">WAITING</span>',
-                'DELIVERED' => '<span class="badge bg-success">DELIVERED</span>', default => '<span class="badge bg-secondary">'.$row['status'].'</span>'
+                'OUT' => '<span class="badge bg-danger">OUT</span>', 
+                'WAITING' => '<span class="badge bg-warning text-dark">WAITING QC</span>',
+                'APPROVED' => '<span class="badge bg-success">APPROVED</span>',
+                'REJECTED' => '<div><span class="badge bg-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Reason: ' . htmlspecialchars($row['qc_comment'] ?? 'No reason provided') . '">REJECTED <i class="bi bi-info-circle"></i></span><br><small class="text-danger fw-bold">' . htmlspecialchars($row['qc_comment'] ?? '') . '</small></div>',
+                'DELIVERED' => '<span class="badge bg-success">DELIVERED</span>', 
+                default => '<span class="badge bg-secondary">'.$row['status'].'</span>'
             };
 
             $sourceRaw = $row['source'] ?? '';
@@ -245,11 +254,26 @@ include 'header.php';
                 <td><?= $row['date_out'] ?></td><td><?= $row['delivered_at'] ?></td>
                 <td><img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" alt="QR"></td>
                 <td>
-                    <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting approval</i></small>
+                    <?php if($row['status'] == 'WAITING'): ?><small><i>Waiting QC...</i></small>
+                    
+                    <?php elseif($row['status'] == 'REJECTED'): ?>
+                        <div class="d-flex flex-column gap-1">
+                            <form method="post" onsubmit="return confirm('Reslit this rejected product?')">
+                                <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                                <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
+                            </form>
+                            <form method="post" onsubmit="return confirm('Move rejected product to Recoiling?')">
+                                <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
+                                <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
+                            </form>
+                        </div>
+
                     <?php elseif($row['status'] == 'IN' && $row['is_completed'] == 0): ?>
                         <a href="?edit=<?= $row['id'] ?>&month=<?= $month ?>&year=<?= $year ?>&search=<?= urlencode($search) ?>" class="btn btn-primary btn-sm w-100 mb-1">Update</a>
-                    <?php elseif($row['status'] == 'IN' && $row['stock_counted'] == 1): ?>
+                    
+                    <?php elseif(($row['status'] == 'IN' && $row['stock_counted'] == 1) || $row['status'] == 'APPROVED'): ?>
                         <div class="d-flex flex-column gap-1">
+                            <?php if($row['status'] != 'APPROVED'): ?>
                             <form method="post" onsubmit="return confirm('Send to reslit?')">
                                 <input type="hidden" name="action" value="send_to_reslit"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
                                 <button type="submit" class="btn btn-warning btn-sm w-100">Reslit</button>
@@ -258,7 +282,13 @@ include 'header.php';
                                 <input type="hidden" name="action" value="send_to_recoiling"><input type="hidden" name="product_id" value="<?= $row['id'] ?>">
                                 <button type="submit" class="btn btn-info btn-sm w-100 text-white">Recoiling</button>
                             </form>
-                            <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
+                            <?php endif; ?>
+                            
+                            <?php if($row['status'] == 'APPROVED'): ?>
+                                <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print & Deliver</a>
+                            <?php else: ?>
+                                <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-secondary btn-sm w-100">Print Only</a>
+                            <?php endif; ?>
                         </div>
                     <?php else: ?>
                         <a href="select_customer.php?id=<?= $row['id'] ?>" class="btn btn-success btn-sm w-100">Print</a>
@@ -317,6 +347,40 @@ include 'header.php';
         if(!document.querySelector('.modal.show') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) qIn.focus();
     }, 800);
     qIn.addEventListener('keydown', (e) => { if(e.key==='Enter' && qIn.value.trim()!=='') qFm.submit(); });
+
+    // Enable Tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+</script>
+
+<script> 
+    //// Existing scanner focus logic...
+    const qIn = document.getElementById('qrInputProduct');
+    const qFm = document.getElementById('scanFormProduct');
+    setInterval(() => {
+        if(!document.querySelector('.modal.show') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) qIn.focus();
+    }, 800);
+    qIn.addEventListener('keydown', (e) => { if(e.key==='Enter' && qIn.value.trim()!=='') qFm.submit(); });
+
+    // ADD THIS: Initialize all tooltips on the page
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });// Existing scanner focus logic...
+    const qIn = document.getElementById('qrInputProduct');
+    const qFm = document.getElementById('scanFormProduct');
+    setInterval(() => {
+        if(!document.querySelector('.modal.show') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) qIn.focus();
+    }, 800);
+    qIn.addEventListener('keydown', (e) => { if(e.key==='Enter' && qIn.value.trim()!=='') qFm.submit(); });
+
+    // ADD THIS: Initialize all tooltips on the page
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
 </script>
 
 <div><a href="index.php" class="btn btn-secondary mt-3">← Back</a></div>
