@@ -63,14 +63,6 @@ if ($from_stock) {
 </head>
 <body>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3><i class="bi bi-scissors me-2"></i>Production Slitting</h3>
-        <a href="<?= $from_stock ? 'raw_material.php' : 'index.php' ?>" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-    </div>
-
     <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3><i class="bi bi-scissors me-2"></i>Production Slitting</h3>
