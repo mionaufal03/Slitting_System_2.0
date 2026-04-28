@@ -76,10 +76,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Field missing");
     }
 
+    // === NEW: DUPLICATE CHECK LOGIC ===
+    // Check if another record already has this Coil No + Lot No combination
+    $check_sql = "SELECT id FROM mother_coil WHERE coil_no = ? AND lot_no = ? AND id != ?";
+    $check_stmt = $conn->prepare($check_sql);
+    $check_stmt->bind_param("ssi", $coil_no, $lot_no, $id);
+    $check_stmt->execute();
+    $check_res = $check_stmt->get_result();
+
+    if ($check_res->num_rows > 0) {
+        // Duplicate found! Stop and inform user
+        die("<div style='color:red; font-family:sans-serif; padding:20px; border:1px solid red; background:#fff5f5;'>
+                <h2>Registration Failed</h2>
+                <p><strong>Duplicate Error:</strong> The combination of Coil: <b>$coil_no</b> and Lot: <b>$lot_no</b> already exists in the system.</p>
+                <p>Please check your data or add an alphabet suffix (e.g., {$lot_no}a) if this is a repeat entry.</p>
+                <button onclick='history.back()'>Go Back and Fix</button>
+             </div>");
+    }
+    $check_stmt->close();
+    // === END OF DUPLICATE CHECK ===
+
     if ($action === 'add') {
         $stmt = $conn->prepare("
-            INSERT INTO mother_coil (product, grade, lot_no, coil_no, width, length, date_created)
-            VALUES (?,?,?,?,?,?,NOW())
+            INSERT INTO mother_coil (product, grade, lot_no, coil_no, width, length, date_created, status)
+            VALUES (?,?,?,?,?,?,NOW(), 'NEW')
         ");
         if (!$stmt) die("Prepare failed: ".$conn->error);
 
@@ -308,13 +328,7 @@ include 'header.php';
 <script>
 function validateLotNo(input){
   if(!input) return;
-  
-  // REMOVED: input.value = input.value.toUpperCase(); 
-  // This allows the user to keep lowercase letters as typed.
-
-  // Regex explanation: Allow a-z, A-Z, and 0-9 with length 4 to 8
   const regex = /^[a-zA-Z0-9]{4,8}$/; 
-  
   if(input.value !== '' && !regex.test(input.value)){
     input.setCustomValidity('Lot No must be 4-8 characters long (letters and numbers allowed).');
   } else {
