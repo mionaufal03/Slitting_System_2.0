@@ -6,6 +6,12 @@ $query = "SELECT * FROM slitting_product WHERE status = 'WAITING' ORDER BY date_
 $result = $conn->query($query);
 ?>
 
+$query = "SELECT id, date_in, coil_no, product, width, length, actual_length 
+          FROM slitting_product 
+          WHERE status = 'WAITING' 
+          ORDER BY date_in DESC";
+$result = $conn->query($query);
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,11 +121,19 @@ $result = $conn->query($query);
                                         <span class="badge bg-light text-dark border fw-bold"><?php echo htmlspecialchars($row['coil_no']); ?></span>
                                     </td>
                                     <td><?php echo htmlspecialchars($row['product']); ?></td>
-                                    <td>
-                                        <span class="text-dark fw-medium"><?php echo $row['width']; ?></span> <span class="text-muted small">mm</span>
-                                        <i class="bi bi-x small text-muted"></i>
-                                        <span class="text-dark fw-medium"><?php echo $row['length']; ?></span> <span class="text-muted small">m</span>
-                                    </td>
+                                    
+                             <td>
+                                <span class="text-dark fw-medium"><?php echo $row['width']; ?></span> <span class="text-muted small">mm</span>
+                                <i class="bi bi-x small text-muted"></i>
+                                <?php if (!empty($row['actual_length']) && $row['actual_length'] > 0): ?>
+                                    <span class="text-primary fw-bold"><?php echo $row['actual_length']; ?></span> 
+                                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">ACTUAL</span>
+                                <?php else: ?>
+                                    <span class="text-dark fw-medium"><?php echo $row['length']; ?></span> 
+                                <?php endif; ?>
+                                <span class="text-muted small">m</span>
+                            </td>
+
                                     <td>
                                         <span class="badge rounded-pill bg-warning text-dark status-badge">
                                             <i class="bi bi-search"></i> PENDING
