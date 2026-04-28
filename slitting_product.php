@@ -108,45 +108,69 @@ include 'header.php';
         <?php endif; ?>
     </div>
     <div class="table-responsive">
-        <table class="table table-hover align-middle text-center mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Coil No</th>
-                    <th>Product</th>
-                    <th>Lot & Roll</th>
-                    <th>Width (mm)</th>
-                    <th>Length (m)</th>
-                    <th>QR Code</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php if($slitting->num_rows > 0): while($row = $slitting->fetch_assoc()): ?>
-                <tr>
-                    <td class="text-muted fw-bold">#<?= $row['id'] ?></td>
-                    <td><span class="fw-bold"><?= htmlspecialchars($row['coil_no'] ?? '') ?></span></td>
-                    <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product'] ?? '') ?></span></td>
-                    <td class="small"><?= htmlspecialchars($row['lot_no'] ?? '') ?> | <?= htmlspecialchars($row['roll_no'] ?? '') ?></td>
-                    <td><?= htmlspecialchars($row['width'] ?? '') ?></td>
-                    <td class="text-primary fw-bold"><?= htmlspecialchars($row['length'] ?? '') ?></td>
-                    <td>
-                        <img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" width="60" class="img-thumbnail" alt="QR">
-                    </td>
-                    <td>
-                        <div class="btn-group shadow-sm">
-                            <a href="?edit=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
-                            <a href="select_customer.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
-                            <a href="?delete=<?= $row['id'] ?>" onclick="return confirm('Delete this product?')" class="btn btn-danger btn-sm">Delete</a>
-                        </div>
-                    </td>
-                </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="8" class="py-5 text-muted">No products found matching your criteria.</td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+    <table class="table table-hover align-middle text-center mb-0">
+        <thead class="table-light">
+            
+            <tr>
+                <th>Product</th>
+                <th>Coil No</th>
+                <th>Roll No</th>
+                <th>Width (mm)</th>
+                <th>Length (m)</th>
+                <th>QR Code</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+
+        <?php if($slitting->num_rows > 0): while($row = $slitting->fetch_assoc()): 
+            // 1. Combine Lot + Coil
+            $lotCoil = htmlspecialchars(($row['lot_no'] ?? '') . ' ' . ($row['coil_no'] ?? ''));
+            
+            // 2. Format Roll No (e.g., R1 becomes R-1)
+            $formattedRoll = str_replace('R', 'R-', $row['roll_no'] ?? '');
+
+            // 3. Logic for Actual Length vs Original Length
+            $displayLength = (!empty($row['actual_length']) && $row['actual_length'] > 0) 
+                             ? $row['actual_length'] 
+                             : $row['length'];
+            $isActual = (!empty($row['actual_length']) && $row['actual_length'] > 0);
+        ?>
+            <tr>
+                <td><span class="badge bg-secondary"><?= htmlspecialchars($row['product'] ?? '') ?></span></td>
+                
+                <td><span class="fw-bold"><?= $lotCoil ?></span></td>
+                
+                <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($formattedRoll) ?></span></td>
+                
+                <td><?= htmlspecialchars($row['width'] ?? '') ?></td>
+                
+                <td>
+                    <span class="<?= $isActual ? 'text-primary fw-bold' : '' ?>">
+                        <?= htmlspecialchars($displayLength ?? '') ?>
+                    </span>
+                    <?php if($isActual): ?>
+                        <br><small class="badge bg-info text-dark" style="font-size: 0.65rem;">ACTUAL</small>
+                    <?php endif; ?>
+                </td>
+                
+                <td>
+                    <img src="generate_qr.php?id=<?= $row['id'] ?>&type=slitting" width="60" class="img-thumbnail" alt="QR">
+                </td>
+                
+                <td>
+                    <div class="btn-group shadow-sm">
+                        <a href="?edit=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
+                        <a href="select_customer.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-success btn-sm">Print</a>
+                        <a href="?delete=<?= $row['id'] ?>" onclick="return confirm('Delete this product?')" class="btn btn-danger btn-sm">Delete</a>
+                    </div>
+                </td>
+            </tr>
+        <?php endwhile; else: ?>
+            <tr><td colspan="7" class="py-5 text-muted">No products found matching your criteria.</td></tr>
+        <?php endif; ?>
+        </tbody>
+    </table>
 </div>
 
 <?php if($editData): ?>
